@@ -2,89 +2,194 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode
 } from "react";
+import { GameClient } from "../game/GameClient";
+import type { RoomState } from "../types";
 
-// Week 2 UI prototype state. Gameplay/networking integration arrives in Phase 2.
-export type Screen = "menu" | "lobby";
+export type Screen =
+  | "menu"
+  | "lobby"
+  | "game"
+  | "settings"
+  | "credits"
+  | "end";
 
-export interface LobbyPlayer {
-  id: string;
-  name: string;
-  host: boolean;
+export type Outcome = "escaped" | "caught" | "timeout" | null;
+
+export interface Settings {
+  master: number;
+  sfx: number;
+  music: number;
 }
 
-const MAX_PLAYERS = 4;
+const SETTINGS_KEY = "cith.settings";
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return { master: 80, sfx: 70, music: 60, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return { master: 80, sfx: 70, music: 60 };
+}
 
 function randomRoomCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
 interface GameContextValue {
+  client: GameClient;
+  connected: boolean;
+  room?: RoomState;
+  localId: string;
   screen: Screen;
   navigate: (screen: Screen) => void;
+  back: () => void;
   playerName: string;
   setPlayerName: (name: string) => void;
   roomId: string;
-  players: LobbyPlayer[];
-  maxPlayers: number;
+  outcome: Outcome;
+  setOutcome: (outcome: Outcome) => void;
+  settings: Settings;
+  updateSettings: (patch: Partial<Settings>) => void;
   createRoom: (name: string) => void;
-  joinRoom: (name: string, code: string) => void;
+  joinRoom: (name: string, roomId: string) => void;
+  startGame: () => void;
   leaveToMenu: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
+  const clientRef = useRef<GameClient | null>(null);
+  if (clientRef.current === null) clientRef.current = new GameClient();
+  const client = clientRef.current as GameClient;
+
+  const [connected, setConnected] = useState(client.connected);
+  const [room, setRoom] = useState<RoomState | undefined>(client.latestRoom);
+  const [localId, setLocalId] = useState(client.localId);
   const [screen, setScreen] = useState<Screen>("menu");
+  const prevScreenRef = useRef<Screen>("menu");
   const [playerName, setPlayerName] = useState("Player");
   const [roomId, setRoomId] = useState("");
-  const [players, setPlayers] = useState<LobbyPlayer[]>([]);
+  const [outcome, setOutcome] = useState<Outcome>(null);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
 
-  const navigate = useCallback((next: Screen) => setScreen(next), []);
+  useEffect(() => {
+    const offConnect = client.onConnected((id) => {
+      setConnected(true);
+      setLocalId(id);
+    });
+    const offRoom = client.onRoom((state) => setRoom(state));
+    client.socket.onDisconnected(() => setConnected(false));
+    return () => {
+      offConnect();
+      offRoom();
+    };
+  }, [client]);
 
-  const createRoom = useCallback((name: string) => {
-    const me = name.trim() || "Player";
-    setPlayerName(me);
-    setRoomId(randomRoomCode());
-    setPlayers([{ id: "you", name: me, host: true }]);
-    setScreen("lobby");
+  const navigate = useCallback((next: Screen) => {
+    setScreen((current) => {
+      prevScreenRef.current = current;
+      return next;
+    });
   }, []);
 
-  const joinRoom = useCallback((name: string, code: string) => {
-    const me = name.trim() || "Player";
-    setPlayerName(me);
-    setRoomId(code.trim().toUpperCase());
-    // Prototype roster: an existing host plus the local player.
-    setPlayers([
-      { id: "host", name: "Host", host: true },
-      { id: "you", name: me, host: false }
-    ]);
-    setScreen("lobby");
+  const back = useCallback(() => {
+    setScreen(prevScreenRef.current ?? "menu");
   }, []);
+
+  const updateSettings = useCallback((patch: Partial<Settings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const createRoom = useCallback(
+    (name: string) => {
+      const code = randomRoomCode();
+      setPlayerName(name || "Player");
+      setRoomId(code);
+      client.socket.createRoom(name || "Player", code);
+      setScreen("lobby");
+    },
+    [client]
+  );
+
+  const joinRoom = useCallback(
+    (name: string, code: string) => {
+      const normalized = code.trim().toUpperCase();
+      setPlayerName(name || "Player");
+      setRoomId(normalized);
+      client.socket.joinRoom(name || "Player", normalized);
+      setScreen("lobby");
+    },
+    [client]
+  );
+
+  const startGame = useCallback(() => {
+    client.socket.startGame();
+    setOutcome(null);
+    setScreen("game");
+  }, [client]);
 
   const leaveToMenu = useCallback(() => {
-    setPlayers([]);
-    setRoomId("");
+    client.unmountGame();
+    setOutcome(null);
     setScreen("menu");
-  }, []);
+  }, [client]);
 
   const value = useMemo<GameContextValue>(
     () => ({
+      client,
+      connected,
+      room,
+      localId,
       screen,
       navigate,
+      back,
       playerName,
       setPlayerName,
       roomId,
-      players,
-      maxPlayers: MAX_PLAYERS,
+      outcome,
+      setOutcome,
+      settings,
+      updateSettings,
       createRoom,
       joinRoom,
+      startGame,
       leaveToMenu
     }),
-    [screen, navigate, playerName, roomId, players, createRoom, joinRoom, leaveToMenu]
+    [
+      client,
+      connected,
+      room,
+      localId,
+      screen,
+      navigate,
+      back,
+      playerName,
+      roomId,
+      outcome,
+      settings,
+      updateSettings,
+      createRoom,
+      joinRoom,
+      startGame,
+      leaveToMenu
+    ]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

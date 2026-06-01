@@ -3,7 +3,8 @@ import { useGame } from "../GameContext";
 import { Button } from "../components/Button";
 
 export function MainMenu() {
-  const { playerName, setPlayerName, createRoom, joinRoom } = useGame();
+  const { navigate, connected, playerName, setPlayerName, createRoom, joinRoom } =
+    useGame();
   const [name, setName] = useState(playerName);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState("");
@@ -69,13 +70,26 @@ export function MainMenu() {
               <Button variant="secondary" onClick={() => setJoining(true)}>
                 Join lobby
               </Button>
+              <Button variant="secondary" onClick={() => navigate("settings")}>
+                Settings
+              </Button>
+              <Button variant="ghost" onClick={() => navigate("credits")}>
+                Credits
+              </Button>
             </div>
           )}
 
           <div className="divider" />
-          <p className="center dim" style={{ margin: 0, fontSize: "0.82rem" }}>
-            Week 2 prototype — gameplay arrives in Phase 2
-          </p>
+          <div className="center">
+            <span className="status-pill">
+              <span
+                className={`status-dot ${
+                  connected ? "status-dot--online" : "status-dot--offline"
+                }`}
+              />
+              {connected ? "Connected to server" : "Offline — demo mode"}
+            </span>
+          </div>
         </div>
       </div>
     </div>
