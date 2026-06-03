@@ -21,6 +21,8 @@ export type Screen =
 
 export type Outcome = "escaped" | "caught" | "timeout" | null;
 
+export type Difficulty = "normal" | "ludicrous";
+
 export interface Settings {
   master: number;
   sfx: number;
@@ -61,6 +63,8 @@ interface GameContextValue {
   createRoom: (name: string) => void;
   joinRoom: (name: string, roomId: string) => void;
   startGame: () => void;
+  difficulty: Difficulty;
+  startSinglePlayer: (difficulty?: Difficulty) => void;
   leaveToMenu: () => void;
 }
 
@@ -80,6 +84,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [roomId, setRoomId] = useState("");
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -145,6 +150,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setScreen("game");
   }, [client]);
 
+  // Offline single-player: jump straight to the local preview, no lobby/socket.
+  const startSinglePlayer = useCallback((mode: Difficulty = "normal") => {
+    setDifficulty(mode);
+    setOutcome(null);
+    setScreen("game");
+  }, []);
+
   const leaveToMenu = useCallback(() => {
     client.unmountGame();
     setOutcome(null);
@@ -170,6 +182,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createRoom,
       joinRoom,
       startGame,
+      difficulty,
+      startSinglePlayer,
       leaveToMenu
     }),
     [
@@ -188,6 +202,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createRoom,
       joinRoom,
       startGame,
+      difficulty,
+      startSinglePlayer,
       leaveToMenu
     ]
   );

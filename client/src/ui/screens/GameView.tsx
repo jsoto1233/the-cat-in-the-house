@@ -1,47 +1,86 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Phaser from "phaser";
 import { useGame } from "../GameContext";
 import { HUD } from "../components/HUD";
 import { PauseOverlay } from "../components/PauseOverlay";
-import { Button } from "../components/Button";
-import type { CatMood, PlayerState } from "../../types";
+import { HousePreviewScene, type PreviewState } from "../preview/HousePreviewScene";
+import type { PlayerState } from "../../types";
 
 const DEMO_TOTAL_MS = 8 * 60 * 1000;
-const CLUES_TOTAL = 5;
-
-interface DemoState {
-  timeLeftMs: number;
-  cluesFound: number;
-  players: PlayerState[];
-}
-
-function moodFor(timeLeftMs: number, total: number): CatMood {
-  const ratio = timeLeftMs / total;
-  if (ratio > 0.66) return "calm";
-  if (ratio > 0.33) return "warning";
-  return "aggressive";
-}
 
 export function GameView() {
-  const { client, room, localId, playerName, navigate, setOutcome } = useGame();
-  const [paused, setPaused] = useState(false);
+  const { playerName, localId, navigate, setOutcome, difficulty } = useGame();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gameRef = useRef<Phaser.Game | null>(null);
   const endedRef = useRef(false);
+  const difficultyRef = useRef(difficulty);
 
-  const [demo, setDemo] = useState<DemoState>(() => ({
-    timeLeftMs: DEMO_TOTAL_MS,
-    cluesFound: 1,
-    players: [
-      { id: localId || "you", name: playerName || "You", x: 0, y: 0, alive: true, clues: [] },
-      { id: "ai-1", name: "Teammate", x: 0, y: 0, alive: true, clues: [] }
-    ]
-  }));
+  const [paused, setPaused] = useState(false);
+  const [timeLeftMs, setTimeLeftMs] = useState(DEMO_TOTAL_MS);
+  const [hitKey, setHitKey] = useState(0);
+  const [awakeKey, setAwakeKey] = useState(0);
+  const [preview, setPreview] = useState<PreviewState>({
+    cluesFound: 0,
+    cluesTotal: 4,
+    mood: "calm",
+    atticUnlocked: false,
+    lives: 3,
+    livesTotal: 3,
+    graceMs: difficulty === "ludicrous" ? 0 : 15000,
+    lethal: difficulty === "ludicrous",
+    difficulty
+  });
 
-  // Mount the Phaser canvas once this screen is shown.
+  const players: PlayerState[] = [
+    { id: localId || "you", name: playerName || "You", x: 0, y: 0, alive: true, clues: [] },
+    { id: "ai-1", name: "Teammate", x: 0, y: 0, alive: true, clues: [] }
+  ];
+
+  // Mount a self-contained Phaser preview (independent of team game logic).
   useEffect(() => {
-    client.mountGame("game-container");
-    return () => client.unmountGame();
-  }, [client]);
+    if (!containerRef.current || gameRef.current) return;
+    const chosen = difficultyRef.current;
+    const game = new Phaser.Game({
+      type: Phaser.AUTO,
+      width: 800,
+      height: 600,
+      parent: containerRef.current,
+      backgroundColor: "#08080c",
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      },
+      callbacks: {
+        preBoot: (g) => g.registry.set("difficulty", chosen)
+      },
+      scene: [HousePreviewScene]
+    });
+    gameRef.current = game;
 
-  // Pause with Escape.
+    game.events.on("preview:update", (state: PreviewState) => setPreview(state));
+    game.events.on("preview:hit", () => setHitKey((k) => k + 1));
+    game.events.on("preview:awake", () => setAwakeKey((k) => k + 1));
+    game.events.on("preview:escaped", () => {
+      if (endedRef.current) return;
+      endedRef.current = true;
+      setOutcome("escaped");
+      navigate("end");
+    });
+    game.events.on("preview:caught", () => {
+      if (endedRef.current) return;
+      endedRef.current = true;
+      setOutcome("caught");
+      // Let the final scratch flash play before switching screens.
+      window.setTimeout(() => navigate("end"), 480);
+    });
+
+    return () => {
+      game.destroy(true);
+      gameRef.current = null;
+    };
+  }, [navigate, setOutcome]);
+
+  // Pause with Escape; also pause/resume the Phaser scene.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setPaused((p) => !p);
@@ -50,94 +89,76 @@ export function GameView() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Offline demo loop drives the HUD when there is no live room.
   useEffect(() => {
-    if (room || paused) return;
+    const scene = gameRef.current?.scene;
+    if (!scene) return;
+    if (paused) scene.pause("HousePreview");
+    else scene.resume("HousePreview");
+  }, [paused]);
+
+  // Match timer (local demo).
+  useEffect(() => {
+    if (paused) return;
     const interval = window.setInterval(() => {
-      setDemo((prev) => {
-        const timeLeftMs = Math.max(0, prev.timeLeftMs - 1000);
-        const elapsed = DEMO_TOTAL_MS - timeLeftMs;
-        const cluesFound = Math.min(
-          CLUES_TOTAL,
-          1 + Math.floor(elapsed / 14000)
-        );
-        return { ...prev, timeLeftMs, cluesFound };
-      });
+      setTimeLeftMs((prev) => Math.max(0, prev - 1000));
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [room, paused]);
+  }, [paused]);
 
-  // Derive HUD values from the live room when available, else from the demo.
-  const hud = useMemo(() => {
-    if (room) {
-      const players = Object.values(room.players);
-      return {
-        timeLeftMs: room.timeLeftMs,
-        cluesFound: room.cluesFound.length,
-        players,
-        catMood: room.cat.mood,
-        atticUnlocked: room.atticUnlocked
-      };
-    }
-    return {
-      timeLeftMs: demo.timeLeftMs,
-      cluesFound: demo.cluesFound,
-      players: demo.players,
-      catMood: moodFor(demo.timeLeftMs, DEMO_TOTAL_MS),
-      atticUnlocked: demo.cluesFound >= CLUES_TOTAL
-    };
-  }, [room, demo]);
-
-  // End conditions.
+  // Timeout end condition.
   useEffect(() => {
-    if (endedRef.current) return;
-    const allDown =
-      hud.players.length > 0 && hud.players.every((p) => !p.alive);
-    if (allDown) {
-      endedRef.current = true;
-      setOutcome("caught");
-      navigate("end");
-    } else if (hud.timeLeftMs <= 0) {
-      endedRef.current = true;
-      setOutcome("timeout");
-      navigate("end");
-    }
-  }, [hud, navigate, setOutcome]);
+    if (endedRef.current || timeLeftMs > 0) return;
+    endedRef.current = true;
+    setOutcome("timeout");
+    navigate("end");
+  }, [timeLeftMs, navigate, setOutcome]);
 
-  const objective =
-    hud.cluesFound >= CLUES_TOTAL
-      ? "The attic is unlocked — escape the house!"
-      : `Search the house for clues (${hud.cluesFound}/${CLUES_TOTAL})`;
+  const objective = preview.atticUnlocked
+    ? "The attic is unlocked — reach it to escape!"
+    : `Search the house for clues (${preview.cluesFound}/${preview.cluesTotal})`;
 
   return (
     <div className="game">
       <div className="game__stage">
-        <div id="game-container" className="game__canvas" />
+        <div ref={containerRef} id="game-container" className="game__canvas" />
+
+        {preview.difficulty === "ludicrous" && (
+          <>
+            <div className="ludicrous-fx" aria-hidden="true" />
+            <div className="ludicrous-badge">Ludicrous</div>
+          </>
+        )}
 
         <HUD
           objective={objective}
-          timeLeftMs={hud.timeLeftMs}
-          cluesFound={hud.cluesFound}
-          cluesTotal={CLUES_TOTAL}
-          players={hud.players}
-          catMood={hud.catMood}
+          timeLeftMs={timeLeftMs}
+          cluesFound={preview.cluesFound}
+          cluesTotal={preview.cluesTotal}
+          lives={preview.lives}
+          livesTotal={preview.livesTotal}
+          graceMs={preview.graceMs}
+          lethal={preview.lethal}
+          players={players}
+          catMood={preview.mood}
           localId={localId || "you"}
           onPause={() => setPaused(true)}
         />
 
-        {/* Pitch-demo shortcut: jump straight to the win screen. */}
-        {!room && (
-          <div style={{ position: "absolute", bottom: 12, left: 12, pointerEvents: "auto" }}>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                endedRef.current = true;
-                setOutcome("escaped");
-                navigate("end");
-              }}
-            >
-              Demo: escape
-            </Button>
+        <div className="game__hint">
+          WASD / arrows to move · find 4 clues · reach the attic · avoid the cat
+        </div>
+
+        {hitKey > 0 && (
+          <div className="scratch" key={hitKey} aria-hidden="true">
+            <span className="scratch__slash" />
+            <span className="scratch__slash" />
+            <span className="scratch__slash" />
+          </div>
+        )}
+
+        {awakeKey > 0 && (
+          <div className="awake-banner" key={`awake-${awakeKey}`} aria-hidden="true">
+            The cat is awake
           </div>
         )}
 

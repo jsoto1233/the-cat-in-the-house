@@ -1,13 +1,21 @@
 import { useState } from "react";
-import { useGame } from "../GameContext";
+import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
 
 export function MainMenu() {
-  const { navigate, connected, playerName, setPlayerName, createRoom, joinRoom } =
-    useGame();
+  const {
+    navigate,
+    connected,
+    playerName,
+    setPlayerName,
+    createRoom,
+    joinRoom,
+    startSinglePlayer
+  } = useGame();
   const [name, setName] = useState(playerName);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState("");
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
 
   const handleName = (value: string) => {
     setName(value);
@@ -17,8 +25,33 @@ export function MainMenu() {
   return (
     <div className="screen">
       <div className="screen__inner">
-        <div className="brand">
-          <h1 className="brand__title">The Cat in the House</h1>
+        <div className="brand brand--bleed">
+          <h1 className="brand__title brand__title--bleed">The Cat in the House</h1>
+          <svg
+            className="brand__drips"
+            viewBox="0 0 400 64"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="blood-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#e0294a" />
+                <stop offset="55%" stopColor="#c41e3a" />
+                <stop offset="100%" stopColor="#7d0f22" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="400" height="6" fill="url(#blood-grad)" />
+            <path d="M22 0 h12 v30 a6 6 0 0 1 -12 0 z" fill="url(#blood-grad)" />
+            <path d="M70 0 h9 v16 a4.5 4.5 0 0 1 -9 0 z" fill="url(#blood-grad)" />
+            <path d="M118 0 h12 v44 a6 6 0 0 1 -12 0 z" fill="url(#blood-grad)" />
+            <path d="M168 0 h8 v12 a4 4 0 0 1 -8 0 z" fill="url(#blood-grad)" />
+            <path d="M214 0 h13 v52 a6.5 6.5 0 0 1 -13 0 z" fill="url(#blood-grad)" />
+            <path d="M262 0 h9 v22 a4.5 4.5 0 0 1 -9 0 z" fill="url(#blood-grad)" />
+            <path d="M312 0 h11 v34 a5.5 5.5 0 0 1 -11 0 z" fill="url(#blood-grad)" />
+            <path d="M360 0 h8 v18 a4 4 0 0 1 -8 0 z" fill="url(#blood-grad)" />
+            <ellipse className="brand__droplet" cx="220" cy="60" rx="4" ry="5" fill="#a01730" />
+            <ellipse className="brand__droplet brand__droplet--slow" cx="124" cy="58" rx="3.4" ry="4.4" fill="#a01730" />
+          </svg>
           <p className="brand__subtitle">Escape together. Don&apos;t get caught.</p>
         </div>
 
@@ -66,15 +99,40 @@ export function MainMenu() {
             </>
           ) : (
             <div className="btn-stack">
-              <Button onClick={() => createRoom(name)}>Create lobby</Button>
+              <div className="difficulty">
+                <span className="difficulty__label">Single-player difficulty</span>
+                <div className="difficulty__toggle" role="group" aria-label="Difficulty">
+                  <button
+                    type="button"
+                    className={`difficulty__opt ${difficulty === "normal" ? "is-active" : ""}`}
+                    aria-pressed={difficulty === "normal"}
+                    onClick={() => setDifficulty("normal")}
+                  >
+                    Normal
+                    <small>15s grace · fair</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={`difficulty__opt difficulty__opt--ludicrous ${
+                      difficulty === "ludicrous" ? "is-active" : ""
+                    }`}
+                    aria-pressed={difficulty === "ludicrous"}
+                    onClick={() => setDifficulty("ludicrous")}
+                  >
+                    Ludicrous
+                    <small>no mercy · chaos</small>
+                  </button>
+                </div>
+              </div>
+              <Button onClick={() => startSinglePlayer(difficulty)}>Single Player</Button>
+              <Button variant="secondary" onClick={() => createRoom(name)}>
+                Create lobby
+              </Button>
               <Button variant="secondary" onClick={() => setJoining(true)}>
                 Join lobby
               </Button>
               <Button variant="secondary" onClick={() => navigate("settings")}>
                 Settings
-              </Button>
-              <Button variant="ghost" onClick={() => navigate("credits")}>
-                Credits
               </Button>
             </div>
           )}

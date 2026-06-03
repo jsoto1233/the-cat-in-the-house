@@ -13,21 +13,6 @@ export function Settings() {
 
         <div className="panel">
           <div className="field">
-            <label className="field__label" htmlFor="master">
-              Master volume — {settings.master}%
-            </label>
-            <input
-              id="master"
-              className="range"
-              type="range"
-              min={0}
-              max={100}
-              value={settings.master}
-              onChange={(e) => updateSettings({ master: Number(e.target.value) })}
-            />
-          </div>
-
-          <div className="field">
             <label className="field__label" htmlFor="sfx">
               Sound effects — {settings.sfx}%
             </label>
