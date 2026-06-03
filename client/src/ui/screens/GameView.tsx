@@ -9,16 +9,13 @@ import type { PlayerState } from "../../types";
 const DEMO_TOTAL_MS = 8 * 60 * 1000;
 
 export function GameView() {
-  const { playerName, localId, navigate, setOutcome, difficulty } = useGame();
+  const { playerName, localId, navigate, difficulty } = useGame();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const endedRef = useRef(false);
   const difficultyRef = useRef(difficulty);
 
   const [paused, setPaused] = useState(false);
-  const [timeLeftMs, setTimeLeftMs] = useState(DEMO_TOTAL_MS);
-  const [hitKey, setHitKey] = useState(0);
-  const [awakeKey, setAwakeKey] = useState(0);
+  const [timeLeftMs] = useState(DEMO_TOTAL_MS);
   const [preview, setPreview] = useState<PreviewState>({
     cluesFound: 0,
     cluesTotal: 4,
@@ -36,7 +33,7 @@ export function GameView() {
     { id: "ai-1", name: "Teammate", x: 0, y: 0, alive: true, clues: [] }
   ];
 
-  // Mount a self-contained Phaser preview (independent of team game logic).
+  // Mount a self-contained Phaser preview (visual layout only — game logic deferred).
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
     const chosen = difficultyRef.current;
@@ -58,27 +55,12 @@ export function GameView() {
     gameRef.current = game;
 
     game.events.on("preview:update", (state: PreviewState) => setPreview(state));
-    game.events.on("preview:hit", () => setHitKey((k) => k + 1));
-    game.events.on("preview:awake", () => setAwakeKey((k) => k + 1));
-    game.events.on("preview:escaped", () => {
-      if (endedRef.current) return;
-      endedRef.current = true;
-      setOutcome("escaped");
-      navigate("end");
-    });
-    game.events.on("preview:caught", () => {
-      if (endedRef.current) return;
-      endedRef.current = true;
-      setOutcome("caught");
-      // Let the final scratch flash play before switching screens.
-      window.setTimeout(() => navigate("end"), 480);
-    });
 
     return () => {
       game.destroy(true);
       gameRef.current = null;
     };
-  }, [navigate, setOutcome]);
+  }, []);
 
   // Pause with Escape; also pause/resume the Phaser scene.
   useEffect(() => {
@@ -96,26 +78,7 @@ export function GameView() {
     else scene.resume("HousePreview");
   }, [paused]);
 
-  // Match timer (local demo).
-  useEffect(() => {
-    if (paused) return;
-    const interval = window.setInterval(() => {
-      setTimeLeftMs((prev) => Math.max(0, prev - 1000));
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [paused]);
-
-  // Timeout end condition.
-  useEffect(() => {
-    if (endedRef.current || timeLeftMs > 0) return;
-    endedRef.current = true;
-    setOutcome("timeout");
-    navigate("end");
-  }, [timeLeftMs, navigate, setOutcome]);
-
-  const objective = preview.atticUnlocked
-    ? "The attic is unlocked — reach it to escape!"
-    : `Search the house for clues (${preview.cluesFound}/${preview.cluesTotal})`;
+  const objective = "House layout preview — movement, cat AI, and collision await game logic integration";
 
   return (
     <div className="game">
@@ -145,22 +108,8 @@ export function GameView() {
         />
 
         <div className="game__hint">
-          WASD / arrows to move · find 4 clues · reach the attic · avoid the cat
+          Visual preview only — game logic (CatAI, CollisionMap) integration pending
         </div>
-
-        {hitKey > 0 && (
-          <div className="scratch" key={hitKey} aria-hidden="true">
-            <span className="scratch__slash" />
-            <span className="scratch__slash" />
-            <span className="scratch__slash" />
-          </div>
-        )}
-
-        {awakeKey > 0 && (
-          <div className="awake-banner" key={`awake-${awakeKey}`} aria-hidden="true">
-            The cat is awake
-          </div>
-        )}
 
         <PauseOverlay
           open={paused}
