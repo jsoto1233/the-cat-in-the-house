@@ -1,20 +1,40 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useGame } from "../GameContext";
 import { Button } from "../components/Button";
+import type { PlayerState } from "../../types";
+
+const MAX_PLAYERS = 4;
 
 export function Lobby() {
-  const { roomId, players, maxPlayers, leaveToMenu } = useGame();
+  const { room, roomId, localId, playerName, startGame, leaveToMenu, connected } =
+    useGame();
   const [ready, setReady] = useState(false);
-  const [launching, setLaunching] = useState(false);
 
-  const isHost = players.find((p) => p.id === "you")?.host ?? true;
+  // Use live room players when connected; otherwise show a local demo roster.
+  const players: PlayerState[] = useMemo(() => {
+    if (room) return Object.values(room.players);
+    return [
+      {
+        id: localId || "you",
+        name: playerName || "You",
+        x: 0,
+        y: 0,
+        alive: true,
+        clues: []
+      }
+    ];
+  }, [room, localId, playerName]);
+
+  const isHost = !room || players[0]?.id === (localId || "you");
 
   return (
     <div className="screen">
       <div className="screen__inner">
         <div className="brand">
           <h1 className="brand__title">Lobby</h1>
-          <p className="brand__subtitle">Gather your team before you enter.</p>
+          <p className="brand__subtitle">
+            {connected ? "Waiting for players…" : "Demo lobby — start when ready"}
+          </p>
         </div>
 
         <div className="panel">
@@ -24,12 +44,12 @@ export function Lobby() {
               <span className="room-code__value">{roomId || "—"}</span>
             </div>
             <span className="dim">
-              {players.length}/{maxPlayers}
+              {players.length}/{MAX_PLAYERS}
             </span>
           </div>
 
           <ul className="slots">
-            {Array.from({ length: maxPlayers }).map((_, i) => {
+            {Array.from({ length: MAX_PLAYERS }).map((_, i) => {
               const player = players[i];
               if (!player) {
                 return (
@@ -38,13 +58,13 @@ export function Lobby() {
                   </li>
                 );
               }
-              const isYou = player.id === "you";
+              const isYou = player.id === (localId || "you");
               const isReady = isYou ? ready : true;
               return (
                 <li key={player.id} className="slot">
                   <span className="slot__name">
                     {player.name}
-                    {player.host && <span className="tag">Host</span>}
+                    {i === 0 && <span className="tag">Host</span>}
                     {isYou && <span className="tag">You</span>}
                   </span>
                   <span className={isReady ? "ready-yes" : "ready-no"}>
@@ -55,22 +75,16 @@ export function Lobby() {
             })}
           </ul>
 
-          {launching ? (
-            <p className="center" style={{ color: "var(--warning)" }}>
-              Starting match… gameplay hooks up in Phase 2.
-            </p>
-          ) : (
-            <div className="btn-stack">
-              <Button variant="secondary" onClick={() => setReady((r) => !r)}>
-                {ready ? "Unready" : "Ready up"}
+          <div className="btn-stack">
+            <Button variant="secondary" onClick={() => setReady((r) => !r)}>
+              {ready ? "Unready" : "Ready up"}
+            </Button>
+            {isHost && (
+              <Button disabled={!ready} onClick={startGame}>
+                Start game
               </Button>
-              {isHost && (
-                <Button disabled={!ready} onClick={() => setLaunching(true)}>
-                  Start game
-                </Button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="back-row">
             <button className="link" onClick={leaveToMenu}>
