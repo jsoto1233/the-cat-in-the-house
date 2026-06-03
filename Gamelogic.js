@@ -46,8 +46,9 @@ export class GameLogic {
    * @param {number} options.mapWidth
    * @param {number} options.mapHeight
    * @param {object} [options.scene]      - Phaser.Scene (optional; null in tests)
+   * @param {object} [options.collisionMap] - optional collision map for the cat
    */
-  constructor({ catStartPos, mapWidth, mapHeight, scene = null }) {
+  constructor({ catStartPos, mapWidth, mapHeight, scene = null, collisionMap = null }) {
     this.mapWidth  = mapWidth;
     this.mapHeight = mapHeight;
 
@@ -59,7 +60,7 @@ export class GameLogic {
     this.players = new Map();
 
     // Cat
-    this.cat = new CatAI(scene, catStartPos, mapWidth, mapHeight);
+    this.cat = new CatAI(scene, catStartPos, mapWidth, mapHeight, collisionMap);
     this.cat
       .on('state_changed', d  => this._emit('cat_state_changed', d))
       .on('cat_awoke', d      => this._emit('cat_awoke', d))
@@ -117,7 +118,8 @@ export class GameLogic {
 
     // Tick cat AI
     const alivePlayers = [...this.players.values()].filter(p => p.alive);
-    this.cat.update(delta, alivePlayers);
+    const safeDelta = Math.min(delta, 50);
+    this.cat.update(safeDelta, alivePlayers);
 
     // Broadcast frame sync for clients and server sync layers
     this._emit('tick', {
@@ -185,6 +187,12 @@ export class GameLogic {
       return;
     }
     this._endGame(GAME_STATE.ESCAPED);
+  }
+
+  setCollisionMap(collisionMap) {
+    this.cat._collisionMap = collisionMap;
+    this.cat._path = [];
+    this.cat._pathGoal = null;
   }
 
   /** Event subscription (mirrors CatAI.on pattern). */

@@ -33,13 +33,21 @@ const THRESHOLD = {
 const SPEED = {
   ASLEEP: 0,
   IDLE:   0,
-  ROAM:   60,
-  ALERT:  90,
-  HUNT:   160,
+  ROAM:   45,
+  ALERT:  65,
+  HUNT:   110,
 };
 
+const MOOD_SPEED_MULT = {
+  calm:       0.80,
+  warning:    0.95,
+  aggressive: 1.10,
+};
+
+const MAX_STEP_PX = 8;
+
 export class CatAI {
-  constructor(scene, startPos, mapWidth, mapHeight) {
+  constructor(scene, startPos, mapWidth, mapHeight, collisionMap = null) {
     this.scene     = scene;
     this.x         = startPos.x;
     this.y         = startPos.y;
@@ -56,6 +64,9 @@ export class CatAI {
     this._graceRemaining = this._graceDuration;
 
     this.pendingTasks = new Set();
+    this._collisionMap = collisionMap;
+    this._path = [];
+    this._pathGoal = null;
 
     this._roamTarget = null;
     this._roamTimer = 0;
@@ -70,6 +81,7 @@ export class CatAI {
   }
 
   update(delta, players) {
+    delta = Math.min(delta, 50); // cap to 50ms per cat tick to prevent teleporting
     const dt = delta / 1000;
     this._elapsed += dt;
 
@@ -92,6 +104,8 @@ export class CatAI {
     this._graceRemaining = this._graceDuration;
     this.state = CAT_STATES.ASLEEP;
     this.speed = SPEED.ASLEEP;
+    this._path = [];
+    this._pathGoal = null;
     this._roamTarget = null;
     this._roamTimer = 0;
     this._pauseTimer = 0;
@@ -265,9 +279,16 @@ export class CatAI {
       this._pauseTimer = 0.2;
       return;
     }
-    const offset = this._alertOffset();
-    const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
-    this._stepToward(destination, dt);
+
+    if (this._collisionMap) {
+      const offset = this._alertOffset();
+      const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
+      this._followPathOrTarget(destination, dt);
+    } else {
+      const offset = this._alertOffset();
+      const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
+      this._stepToward(destination, dt);
+    }
   }
 
   _updateHunt(dt, players) {
@@ -288,20 +309,68 @@ export class CatAI {
       this._detourTimer = 0.6 + Math.random() * 0.8;
     }
     const destination = this._detourTarget || targetPlayer;
-    this._stepToward(destination, dt, 0.1);
+    if (this._collisionMap) {
+      this._followPathOrTarget(destination, dt, 0.1);
+    } else {
+      this._stepToward(destination, dt, 0.1);
+    }
     if (this._dist(targetPlayer) < 24) {
       this._emit('player_caught', { playerId: targetPlayer.id });
     }
+  }
+
+  _followPathOrTarget(target, dt, slowdown = 0) {
+    if (!this._collisionMap) {
+      this._stepToward(target, dt, slowdown);
+      return;
+    }
+
+    const goalChanged = !this._pathGoal || this._distXY(target, this._pathGoal) > 64;
+    if (goalChanged || this._path.length === 0) {
+      this._path = this._collisionMap.findPath(this.x, this.y, target.x, target.y);
+      this._pathGoal = { x: target.x, y: target.y };
+    }
+
+    if (this._path.length > 0) {
+      const waypoint = this._path[0];
+      this._stepToward(waypoint, dt, slowdown);
+      if (this._distXY(this.x, this.y, waypoint.x, waypoint.y) < 10) {
+        this._path.shift();
+      }
+      return;
+    }
+
+    this._stepToward(target, dt, slowdown);
+  }
+
+  _distXY(x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
   _stepToward(target, dt, slowdown = 0) {
     if (!target) return;
     const dx = target.x - this.x;
     const dy = target.y - this.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const move = this.speed * dt * (1 - slowdown);
-    this.x += (dx / len) * Math.min(move, len);
-    this.y += (dy / len) * Math.min(move, len);
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return;
+
+    const moodMult = MOOD_SPEED_MULT[this.mood] ?? 1;
+    const move = Math.min(this.speed * dt * moodMult, MAX_STEP_PX, len);
+    const toX = this.x + (dx / len) * move;
+    const toY = this.y + (dy / len) * move;
+
+    if (this._collisionMap) {
+      const resolved = this._collisionMap.resolveMove(this.x, this.y, toX, toY);
+      this.x = resolved.x;
+      this.y = resolved.y;
+    } else {
+      this.x = toX;
+      this.y = toY;
+    }
+
+    this._clampPosition();
   }
 
   _pickRoamTarget() {
@@ -352,11 +421,6 @@ export class CatAI {
     this.x = Math.max(0, Math.min(this.mapWidth, this.x));
     this.y = Math.max(0, Math.min(this.mapHeight, this.y));
   }
-
-  _emit(event, data) {
-    (this._listeners[event] || []).forEach(fn => fn(data));
-  }
-}
 
   _emit(event, data) {
     (this._listeners[event] || []).forEach(fn => fn(data));
