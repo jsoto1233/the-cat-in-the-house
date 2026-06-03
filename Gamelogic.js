@@ -62,6 +62,7 @@ export class GameLogic {
     this.cat = new CatAI(scene, catStartPos, mapWidth, mapHeight);
     this.cat
       .on('state_changed', d  => this._emit('cat_state_changed', d))
+      .on('cat_awoke', d      => this._emit('cat_awoke', d))
       .on('player_caught', d  => this._onPlayerCaught(d))
       .on('task_completed', d => this._emit('task_completed', d))
       .on('task_neglected', d => this._emit('task_neglected', d));
@@ -89,8 +90,12 @@ export class GameLogic {
     this.timeLeft      = GAME_DURATION_SECONDS;
     this.cluesFound    = 0;
     this.clueLocations = this._placeClues();
+    this.cat.reset();
 
-    this._emit('game_started', { clueLocations: this.clueLocations });
+    this._emit('game_started', {
+      clueLocations: this.clueLocations,
+      cat: this.cat.serialize(),
+    });
   }
 
   /** Main update – call from Phaser scene update() or a setInterval. */
@@ -114,14 +119,12 @@ export class GameLogic {
     const alivePlayers = [...this.players.values()].filter(p => p.alive);
     this.cat.update(delta, alivePlayers);
 
-    // Broadcast periodic sync
-    if (Math.floor(this._elapsed * 10) % 2 === 0) {
-      this._emit('tick', {
-        timeLeft:   Math.ceil(this.timeLeft),
-        cluesFound: this.cluesFound,
-        cat:        this.cat.serialize(),
-      });
-    }
+    // Broadcast frame sync for clients and server sync layers
+    this._emit('tick', {
+      timeLeftMs: Math.max(0, Math.round(this.timeLeft * 1000)),
+      cluesFound: this.cluesFound,
+      cat:        this.cat.serialize(),
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -155,6 +158,8 @@ export class GameLogic {
       cluesFound: this.cluesFound,
       cluesNeeded: CLUES_NEEDED_TO_ESCAPE,
     });
+
+    this.cat.onClueCollected(playerId, clueId);
 
     if (this.cluesFound >= CLUES_NEEDED_TO_ESCAPE) {
       this._emit('all_clues_found', {});
