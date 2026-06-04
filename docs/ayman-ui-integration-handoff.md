@@ -168,7 +168,7 @@ type Outcome = "escaped" | "caught" | "timeout" | null;
 | Outcome | When | `Gamelogic.js` analogue |
 |---------|------|-------------------------|
 | `timeout` | React timer hits 0 | `GAME_STATE.TIMEOUT` / already wired in UI |
-| `escaped` | All valuables + successful getaway | `GAME_STATE.ESCAPED` / `attemptEscape()` |
+| `escaped` | All valuables + successful escape | `GAME_STATE.ESCAPED` / `attemptEscape()` |
 | `caught` | Cat catches player (lives exhausted) | `GAME_STATE.CAUGHT` / `player_caught` |
 
 **Ayman should trigger** (via callback or event bridge Jose adds):
@@ -227,7 +227,7 @@ Source: `client/src/ui/preview/HousePreviewScene.ts`
 | `hallway` | Hallway | 30 | 270 | 740 | 60 | |
 | `bedroom` | Bedroom | 30 | 340 | 290 | 230 | |
 | `bathroom` | Bathroom | 340 | 340 | 200 | 230 | |
-| `attic` | **Getaway** | 560 | 340 | 210 | 230 | `isAttic: true`, getaway vehicle placeholder |
+| `attic` | **Back door** | 560 | 340 | 210 | 230 | `isAttic: true`, back door escape placeholder |
 
 ### Doorway gaps (floor-colored bridges into hallway)
 
@@ -245,7 +245,7 @@ Source: `client/src/ui/preview/HousePreviewScene.ts`
 |--------|----------|
 | Player | `PLAYER_SPAWN` **(400, 300)** |
 | Cat | `CAT_SPAWN` **(440, 150)** |
-| Getaway | Center of attic room — labeled **GETAWAY VEHICLE** |
+| Back door | Center of attic room — labeled **Back door** |
 
 ### Valuable locations (`MONEY_SPOTS` — use for pickups)
 
@@ -275,9 +275,9 @@ Root `Gamelogic.js` `ROOMS` = `['hallway', 'bedroom', 'basement', 'attic']` and 
 | Markers | Gold `$` tweens at `MONEY_SPOTS` | `spawnMoneyMarker()` |
 
 On pickup: increment `cashFound`, hide/remove marker, re-emit `preview:update`.  
-Win condition (UI copy): collect valuables and escape to getaway — wire `attemptEscape` / attic zone when `cashFound >= 4` and `atticUnlocked` (if you gate the attic).
+Win condition (UI copy): collect valuables and escape — wire `attemptEscape` / attic zone when `cashFound >= 4` and `atticUnlocked` (if you gate the attic).
 
-`atticUnlocked: false` in placeholder state — expose when getaway is reachable.
+`atticUnlocked: false` in placeholder state — expose when the back door is reachable.
 
 ---
 
@@ -341,11 +341,11 @@ These are **not** imported by `GameView` yet.
 | Game objective | `Solo heist: search the house, collect $ valuables, and escape.` |
 | HUD labels | `Objective`, `Time`, `Loot`, `Lives` |
 | Pause | `Paused`, `Resume`, `Settings`, `Leave to menu` |
-| End — escaped | `Got away with the loot` + blurb about crew / getaway vehicle |
+| End — escaped | `Got away with the loot` + blurb about crew / back door |
 | End — caught | `The cat caught you` + possessed cat blurb |
 | End — timeout | `Time's up` (no blurb) |
 | End actions | `Try Again`, `Main Menu` |
-| Attic visual | `GETAWAY VEHICLE` |
+| Attic visual | `Back door` |
 | Ludicrous badge | `Ludicrous` |
 
 Use **valuables / loot / $** in player-facing text, not “clues,” unless referring to legacy code symbols.
@@ -359,7 +359,7 @@ Use **valuables / loot / $** in player-facing text, not “clues,” unless refe
 3. **Replace** static player/cat placeholders with driven sprites; keep depth/layering similar to preview if possible.
 4. **Wire pickups** at `MONEY_SPOTS` → increment loot count → emit `preview:update` with `cashFound`.
 5. **Wire lives** — cat catch reduces `lives`; at 0 emit outcome `caught` (bridge to React).
-6. **Wire getaway** — attic zone + `cashFound >= 4` → `escaped` (bridge to React).
+6. **Wire escape** — attic / back door zone + `cashFound >= 4` → `escaped` (bridge to React).
 7. **Emit** `preview:update` on mood/cat aggression changes (`mood` maps from cat behavior).
 8. **Set** `atticUnlocked` when escape route is valid (if gated).
 9. **Respect pause** — no simulation while Phaser scene paused; do not run a second 300s timer unless coordinated with Jose.

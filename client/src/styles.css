@@ -478,49 +478,75 @@ input {
 /* ---------- Game view + HUD ---------- */
 
 .game {
-  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0.75rem;
   background: #050507;
+}
+
+.game__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(800px, 96vw);
+  max-height: 94vh;
+  gap: 0.65rem;
 }
 
 .game__stage {
   position: relative;
-  width: min(800px, 96vw);
+  width: 100%;
   aspect-ratio: 4 / 3;
-  max-height: 94vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
 }
 
 .game__canvas {
-  position: absolute;
-  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .hud {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  padding: 0.9rem;
+  --hud-cell-height: 3.5rem;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0;
+  width: 100%;
+}
+
+.hud__slot {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.hud__slot--objective {
+  position: relative;
+  z-index: 12;
+}
+
+.hud__cell {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: var(--hud-cell-height);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-}
-
-.hud__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.hud__card {
+  justify-content: center;
+  align-items: stretch;
+  padding: 0.45rem 0.55rem;
   background: rgba(8, 8, 12, 0.78);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
   backdrop-filter: blur(2px);
+  box-sizing: border-box;
 }
 
 .hud__label {
@@ -535,24 +561,18 @@ input {
 .hud__objective-wrap {
   position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-  max-width: min(58%, 22rem);
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .hud__objective-btn {
-  pointer-events: auto;
   font-family: var(--font-body);
   font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text);
-  background: rgba(8, 8, 12, 0.85);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.75rem;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -573,8 +593,11 @@ input {
 }
 
 .hud__objective-panel {
-  pointer-events: auto;
-  width: 100%;
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
   background: rgba(8, 8, 12, 0.92);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -603,7 +626,7 @@ input {
 }
 
 .hud__timer {
-  text-align: right;
+  text-align: center;
 }
 
 .hud__timer strong {
@@ -622,19 +645,14 @@ input {
   }
 }
 
-.hud__bottom {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
-}
-
 .hud__loot,
 .hud__lives {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  min-width: 5.25rem;
-  min-height: 3.35rem;
+  text-align: center;
+}
+
+.hud__loot .hud__stat-value,
+.hud__lives .hud__stat-value {
+  justify-content: center;
 }
 
 .hud__stat-value {
@@ -662,15 +680,27 @@ input {
   color: #2ecc71;
 }
 
+.hud__pause-btn {
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
 
-.cat-mood--aggressive {
-  color: var(--danger);
-  border-color: var(--danger);
-  animation: pulse 0.8s infinite;
+.hud__pause-btn:hover {
+  border-color: var(--border-strong);
+  background: rgba(20, 20, 31, 0.92);
+}
+
+.hud__pause-icon {
+  font-size: 1rem;
+  letter-spacing: -0.08em;
+  line-height: 1;
 }
 
 .icon-btn {
-  pointer-events: auto;
   width: 38px;
   height: 38px;
   border-radius: var(--radius-sm);
@@ -758,12 +788,6 @@ input {
 }
 
 /* ---------- HUD: lives, cash ---------- */
-
-.hud__bottom-left {
-  display: flex;
-  gap: 0.5rem;
-  align-items: stretch;
-}
 
 .hearts {
   gap: 0.18rem;

@@ -112,16 +112,7 @@ export function GameView() {
 
   return (
     <div className="game">
-      <div className="game__stage">
-        <div ref={containerRef} id="game-container" className="game__canvas" />
-
-        {preview.difficulty === "ludicrous" && (
-          <>
-            <div className="ludicrous-fx" aria-hidden="true" />
-            <div className="ludicrous-badge">Ludicrous</div>
-          </>
-        )}
-
+      <div className="game__panel">
         <HUD
           objective={objective}
           showObjectivePanel={showObjectivePanel}
@@ -135,12 +126,23 @@ export function GameView() {
           onPause={() => setPaused(true)}
         />
 
-        <PauseOverlay
-          open={paused}
-          onResume={() => setPaused(false)}
-          onSettings={() => navigate("settings")}
-          onLeave={() => navigate("menu")}
-        />
+        <div className="game__stage">
+          <div ref={containerRef} id="game-container" className="game__canvas" />
+
+          {preview.difficulty === "ludicrous" && (
+            <>
+              <div className="ludicrous-fx" aria-hidden="true" />
+              <div className="ludicrous-badge">Ludicrous</div>
+            </>
+          )}
+
+          <PauseOverlay
+            open={paused}
+            onResume={() => setPaused(false)}
+            onSettings={() => navigate("settings")}
+            onLeave={() => navigate("menu")}
+          />
+        </div>
       </div>
     </div>
   );

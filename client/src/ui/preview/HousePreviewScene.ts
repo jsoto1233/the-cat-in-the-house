@@ -44,7 +44,10 @@ const PALETTE = {
   moneyGlow: 0xffe23a,
   moneyGold: 0xffd633,
   moneyHighlight: 0xfff4a8,
-  attic: 0xc41e3a
+  attic: 0xc41e3a,
+  doorWood: 0x3a2b22,
+  doorWoodDark: 0x241a14,
+  doorHandle: 0x141010
 };
 
 const WORLD = { x: 30, y: 30, w: 740, h: 540 };
@@ -60,7 +63,7 @@ const ROOMS: Room[] = [
   { key: "hallway", name: "Hallway", x: 30, y: 270, w: 740, h: 60 },
   { key: "bedroom", name: "Bedroom", x: 30, y: 340, w: 290, h: 230 },
   { key: "bathroom", name: "Bathroom", x: 340, y: 340, w: 200, h: 230 },
-  { key: "attic", name: "Getaway", x: 560, y: 340, w: 210, h: 230, isAttic: true }
+  { key: "attic", name: "Back door", x: 560, y: 340, w: 210, h: 230, isAttic: true }
 ];
 
 const MONEY_SPOTS = [
@@ -106,15 +109,10 @@ export class HousePreviewScene extends Phaser.Scene {
     this.drawDoor(430, 330, 46, 14);
     this.drawDoor(650, 330, 46, 14);
 
-    // Getaway vehicle area (static placeholder).
+    // Back door escape area (static placeholder).
     const attic = ROOMS.find((r) => r.isAttic)!;
     this.add
-      .rectangle(attic.x + attic.w / 2, attic.y + attic.h / 2, attic.w - 16, attic.h - 16)
-      .setStrokeStyle(2, PALETTE.attic, 0.35)
-      .setFillStyle(PALETTE.attic, 0.04)
-      .setDepth(1);
-    this.add
-      .text(attic.x + attic.w / 2, attic.y + attic.h / 2, "GETAWAY\nVEHICLE", {
+      .text(attic.x + attic.w / 2, attic.y + attic.h / 2, "Back door", {
         fontFamily: "Inter, sans-serif",
         fontSize: "13px",
         color: "#8a8690",
@@ -122,6 +120,7 @@ export class HousePreviewScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(2);
+    this.drawBackDoor(attic);
 
     // Cash pickup markers ($ at former clue positions).
     MONEY_SPOTS.forEach((spot) => this.spawnMoneyMarker(spot.x, spot.y));
@@ -152,6 +151,36 @@ export class HousePreviewScene extends Phaser.Scene {
 
   private drawDoor(x: number, y: number, w: number, h: number) {
     this.add.rectangle(x, y, w, h, PALETTE.hallway).setDepth(1);
+  }
+
+  /** Small exit door on the right wall of the Back door room (visual only). */
+  private drawBackDoor(room: Rect) {
+    const doorW = 20;
+    const doorH = 72;
+    const wallInset = 5;
+    const cx = room.x + room.w - wallInset - doorW / 2;
+    const cy = room.y + room.h / 2 + 28;
+
+    const escapePad = 3;
+    const escapeW = doorW + 6 + escapePad * 2;
+    const escapeH = doorH + 6 + escapePad * 2;
+    const escapePerimeter = this.add
+      .rectangle(0, 0, escapeW, escapeH)
+      .setStrokeStyle(2, PALETTE.attic, 0.9)
+      .setFillStyle(PALETTE.attic, 0.04);
+
+    const frame = this.add
+      .rectangle(0, 0, doorW + 6, doorH + 6, PALETTE.doorWoodDark)
+      .setStrokeStyle(2, PALETTE.outline);
+    const panel = this.add
+      .rectangle(0, 0, doorW, doorH, PALETTE.doorWood)
+      .setStrokeStyle(2, PALETTE.outline);
+    const inset = this.add.rectangle(0, 0, doorW - 6, doorH - 10, PALETTE.doorWoodDark, 0.55);
+    const handle = this.add
+      .rectangle(-doorW / 2 + 5, 2, 2, 10, PALETTE.doorHandle)
+      .setStrokeStyle(1, PALETTE.outline);
+
+    this.add.container(cx, cy, [escapePerimeter, frame, panel, inset, handle]).setDepth(1);
   }
 
   private spawnMoneyMarker(x: number, y: number) {

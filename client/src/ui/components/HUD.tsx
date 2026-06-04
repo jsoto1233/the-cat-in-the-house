@@ -35,17 +35,17 @@ export function HUD({
   const low = timeLeftMs <= 30_000;
 
   return (
-    <div className="hud">
-      <div className="hud__row">
+    <header className="hud" aria-label="Game status">
+      <div className="hud__slot hud__slot--objective">
         <div className="hud__objective-wrap">
           <button
             type="button"
-            className={`hud__objective-btn ${objectivePanelActive ? "is-active" : ""}`}
+            className={`hud__cell hud__objective-btn ${objectivePanelActive ? "is-active" : ""}`}
             onClick={onObjectiveToggle}
             aria-expanded={showObjectivePanel}
             aria-controls="hud-objective-panel"
           >
-            Objective
+            <span className="hud__label">Objective</span>
           </button>
           {showObjectivePanel && (
             <div
@@ -58,41 +58,48 @@ export function HUD({
             </div>
           )}
         </div>
-        <div className="hud__row" style={{ alignItems: "flex-start", gap: "0.5rem" }}>
-          <div className={`hud__card hud__timer ${low ? "is-low" : ""}`}>
-            <span className="hud__label">Time</span>
-            <strong aria-live="polite">{formatTime(timeLeftMs)}</strong>
-          </div>
-          <button className="icon-btn" onClick={onPause} aria-label="Pause">
-            II
-          </button>
+      </div>
+
+      <div className="hud__slot">
+        <div className="hud__cell hud__card hud__loot">
+          <span className="hud__label">Loot</span>
+          <span className="hud__stat-value cash-counter" aria-label={`${cashFound} of ${cashTotal} valuables collected`}>
+            <span className="cash-counter__sign" aria-hidden="true">
+              $
+            </span>
+            <strong>{cashFound}</strong>
+            <span className="dim">/ {cashTotal}</span>
+          </span>
         </div>
       </div>
 
-      <div className="hud__bottom">
-        <div className="hud__bottom-left">
-          <div className="hud__card hud__stat hud__loot">
-            <span className="hud__label">Loot</span>
-            <span className="hud__stat-value cash-counter" aria-label={`${cashFound} of ${cashTotal} valuables collected`}>
-              <span className="cash-counter__sign" aria-hidden="true">
-                $
+      <div className="hud__slot">
+        <div className="hud__cell hud__card hud__lives">
+          <span className="hud__label">Lives</span>
+          <span className="hud__stat-value hearts" aria-label={`${lives} of ${livesTotal} lives`}>
+            {Array.from({ length: livesTotal }).map((_, i) => (
+              <span key={i} className={`heart ${i < lives ? "" : "heart--lost"}`}>
+                {"\u2665"}
               </span>
-              <strong>{cashFound}</strong>
-              <span className="dim">/ {cashTotal}</span>
-            </span>
-          </div>
-          <div className="hud__card hud__stat hud__lives">
-            <span className="hud__label">Lives</span>
-            <span className="hud__stat-value hearts" aria-label={`${lives} of ${livesTotal} lives`}>
-              {Array.from({ length: livesTotal }).map((_, i) => (
-                <span key={i} className={`heart ${i < lives ? "" : "heart--lost"}`}>
-                  {"\u2665"}
-                </span>
-              ))}
-            </span>
-          </div>
+            ))}
+          </span>
         </div>
       </div>
-    </div>
+
+      <div className="hud__slot">
+        <div className={`hud__cell hud__card hud__timer ${low ? "is-low" : ""}`}>
+          <span className="hud__label">Time</span>
+          <strong aria-live="polite">{formatTime(timeLeftMs)}</strong>
+        </div>
+      </div>
+
+      <div className="hud__slot">
+        <button className="hud__cell hud__pause-btn" type="button" onClick={onPause} aria-label="Pause">
+          <span className="hud__pause-icon" aria-hidden="true">
+            II
+          </span>
+        </button>
+      </div>
+    </header>
   );
 }
