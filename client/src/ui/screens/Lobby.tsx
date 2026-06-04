@@ -31,9 +31,9 @@ export function Lobby() {
     <div className="screen">
       <div className="screen__inner">
         <div className="brand">
-          <h1 className="brand__title">Lobby</h1>
+          <h1 className="brand__title">Heist lobby</h1>
           <p className="brand__subtitle">
-            {connected ? "Waiting for players…" : "Demo lobby — start when ready"}
+            {connected ? "Crew assembling — share the room code" : "Practice crew — ready up when you are"}
           </p>
         </div>
 
@@ -54,7 +54,7 @@ export function Lobby() {
               if (!player) {
                 return (
                   <li key={i} className="slot slot--empty">
-                    Empty slot
+                    Robber slot — open
                   </li>
                 );
               }
@@ -74,6 +74,8 @@ export function Lobby() {
               );
             })}
           </ul>
+
+          <p className="lobby-note dim">Co-op: search rooms, collect $ valuables, and escape. Multiplayer supports 4 robbers + 1 cat (asymmetric role soon).</p>
 
           <div className="btn-stack">
             <Button variant="secondary" onClick={() => setReady((r) => !r)}>

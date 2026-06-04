@@ -1,17 +1,13 @@
-import type { CatMood, PlayerState } from "../../types";
-
 interface HUDProps {
   objective: string;
+  showObjectivePanel: boolean;
+  objectivePanelActive: boolean;
+  onObjectiveToggle: () => void;
   timeLeftMs: number;
-  cluesFound: number;
-  cluesTotal: number;
+  cashFound: number;
+  cashTotal: number;
   lives: number;
   livesTotal: number;
-  graceMs: number;
-  lethal: boolean;
-  players: PlayerState[];
-  catMood: CatMood;
-  localId: string;
   onPause: () => void;
 }
 
@@ -24,48 +20,45 @@ function formatTime(ms: number) {
   return `${m}:${s}`;
 }
 
-const MOOD_LABEL: Record<CatMood, string> = {
-  calm: "Cat: calm",
-  warning: "Cat: alert",
-  aggressive: "Cat: hunting"
-};
-
 export function HUD({
   objective,
+  showObjectivePanel,
+  objectivePanelActive,
+  onObjectiveToggle,
   timeLeftMs,
-  cluesFound,
-  cluesTotal,
+  cashFound,
+  cashTotal,
   lives,
   livesTotal,
-  graceMs,
-  lethal,
-  players,
-  catMood,
-  localId,
   onPause
 }: HUDProps) {
   const low = timeLeftMs <= 30_000;
-  const inGrace = graceMs > 0;
 
   return (
     <div className="hud">
       <div className="hud__row">
-        <div className="hud__card hud__objective">
-          <span className="hud__label">Objective</span>
-          <p>{objective}</p>
-        </div>
-        <div className="hud__row" style={{ alignItems: "flex-start", gap: "0.5rem" }}>
-          {inGrace ? (
-            <div className="hud__card hud__grace" aria-live="polite">
-              <span className="hud__label">Cat wakes in</span>
-              <strong>{formatTime(graceMs)}</strong>
-            </div>
-          ) : (
-            <div className={`hud__card hud__awake ${lethal ? "is-lethal" : ""}`}>
-              <span className="hud__label">Cat</span>
-              <strong>AWAKE</strong>
+        <div className="hud__objective-wrap">
+          <button
+            type="button"
+            className={`hud__objective-btn ${objectivePanelActive ? "is-active" : ""}`}
+            onClick={onObjectiveToggle}
+            aria-expanded={showObjectivePanel}
+            aria-controls="hud-objective-panel"
+          >
+            Objective
+          </button>
+          {showObjectivePanel && (
+            <div
+              id="hud-objective-panel"
+              className="hud__objective-panel"
+              role="region"
+              aria-label="Mission objective"
+            >
+              <p>{objective}</p>
             </div>
           )}
+        </div>
+        <div className="hud__row" style={{ alignItems: "flex-start", gap: "0.5rem" }}>
           <div className={`hud__card hud__timer ${low ? "is-low" : ""}`}>
             <span className="hud__label">Time</span>
             <strong aria-live="polite">{formatTime(timeLeftMs)}</strong>
@@ -78,37 +71,25 @@ export function HUD({
 
       <div className="hud__bottom">
         <div className="hud__bottom-left">
-          <div className="hud__card">
-            <span className="hud__label">Clues</span>
-            <span className="clue">
-              <strong>{cluesFound}</strong>
-              <span className="dim">/ {cluesTotal}</span>
+          <div className="hud__card hud__stat hud__loot">
+            <span className="hud__label">Loot</span>
+            <span className="hud__stat-value cash-counter" aria-label={`${cashFound} of ${cashTotal} valuables collected`}>
+              <span className="cash-counter__sign" aria-hidden="true">
+                $
+              </span>
+              <strong>{cashFound}</strong>
+              <span className="dim">/ {cashTotal}</span>
             </span>
           </div>
-          <div className="hud__card">
+          <div className="hud__card hud__stat hud__lives">
             <span className="hud__label">Lives</span>
-            <span className="hearts" aria-label={`${lives} of ${livesTotal} lives`}>
+            <span className="hud__stat-value hearts" aria-label={`${lives} of ${livesTotal} lives`}>
               {Array.from({ length: livesTotal }).map((_, i) => (
                 <span key={i} className={`heart ${i < lives ? "" : "heart--lost"}`}>
                   {"\u2665"}
                 </span>
               ))}
             </span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end" }}>
-          <span className={`cat-mood cat-mood--${catMood}`}>{MOOD_LABEL[catMood]}</span>
-          <div className="players-strip">
-            {players.map((p) => (
-              <span
-                key={p.id}
-                className={`player-chip ${p.alive ? "" : "player-chip--down"}`}
-              >
-                {p.name}
-                {p.id === localId ? " (you)" : ""}
-              </span>
-            ))}
           </div>
         </div>
       </div>

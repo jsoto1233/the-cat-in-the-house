@@ -114,6 +114,14 @@ input {
   line-height: 1.05;
 }
 
+.brand__tagline {
+  margin: -0.35rem 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.45;
+}
+
 .brand__subtitle {
   color: var(--text-muted);
   margin: 0;
@@ -169,7 +177,15 @@ input {
   filter: drop-shadow(0 4px 6px rgba(140, 12, 30, 0.5));
 }
 
-.brand--bleed .brand__subtitle {
+.brand--bleed .brand__tagline {
+  margin: -0.35rem 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.brand__subtitle {
   margin-top: 8px;
 }
 
@@ -382,6 +398,12 @@ input {
 
 /* ---------- Lobby ---------- */
 
+.lobby-note {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
 .room-code {
   display: flex;
   align-items: center;
@@ -476,22 +498,6 @@ input {
   inset: 0;
 }
 
-.game__hint {
-  position: absolute;
-  left: 50%;
-  bottom: 10px;
-  transform: translateX(-50%);
-  pointer-events: none;
-  font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  color: var(--text-dim);
-  background: rgba(8, 8, 12, 0.7);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
-  white-space: nowrap;
-}
-
 .hud {
   position: absolute;
   inset: 0;
@@ -526,14 +532,74 @@ input {
   margin-bottom: 0.15rem;
 }
 
-.hud__objective {
-  max-width: 58%;
+.hud__objective-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  max-width: min(58%, 22rem);
 }
 
-.hud__objective p {
+.hud__objective-btn {
+  pointer-events: auto;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text);
+  background: rgba(8, 8, 12, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.hud__objective-btn:hover {
+  border-color: var(--border-strong);
+  background: rgba(20, 20, 31, 0.92);
+}
+
+.hud__objective-btn.is-active,
+.hud__objective-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px rgba(196, 30, 58, 0.25);
+}
+
+.hud__objective-panel {
+  pointer-events: auto;
+  width: 100%;
+  background: rgba(8, 8, 12, 0.92);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+  backdrop-filter: blur(4px);
+  box-shadow: var(--shadow);
+  animation: hud-objective-in 0.22s ease-out;
+}
+
+.hud__objective-panel p {
   margin: 0;
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+@keyframes hud-objective-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .hud__timer {
@@ -558,63 +624,44 @@ input {
 
 .hud__bottom {
   display: flex;
-  justify-content: space-between;
   align-items: flex-end;
   gap: 0.75rem;
 }
 
-.clue {
+.hud__loot,
+.hud__lives {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 5.25rem;
+  min-height: 3.35rem;
+}
+
+.hud__stat-value {
   display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  font-size: 1.05rem;
+  min-height: 1.05rem;
+}
+
+.cash-counter {
   align-items: baseline;
   gap: 0.35rem;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.7rem;
 }
 
-.clue strong {
-  font-size: 1.1rem;
+.cash-counter__sign {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #c9a227;
+  line-height: 1;
 }
 
-.players-strip {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+.cash-counter strong {
+  font-size: 1.05rem;
+  color: #2ecc71;
 }
 
-.player-chip {
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(8, 8, 12, 0.8);
-  border: 1px solid var(--border);
-}
-
-.player-chip--down {
-  opacity: 0.45;
-  text-decoration: line-through;
-}
-
-.cat-mood {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-}
-
-.cat-mood--calm {
-  color: var(--success);
-  border-color: var(--success);
-}
-
-.cat-mood--warning {
-  color: var(--warning);
-  border-color: var(--warning);
-}
 
 .cat-mood--aggressive {
   color: var(--danger);
@@ -679,6 +726,14 @@ input {
 
 /* ---------- Credits ---------- */
 
+.credits-premise {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  text-align: center;
+}
+
 .credits-list {
   list-style: none;
   padding: 0;
@@ -702,19 +757,16 @@ input {
   color: var(--text-dim);
 }
 
-/* ---------- HUD: lives, grace, awake ---------- */
+/* ---------- HUD: lives, cash ---------- */
 
 .hud__bottom-left {
   display: flex;
   gap: 0.5rem;
-  align-items: flex-end;
+  align-items: stretch;
 }
 
 .hearts {
-  display: inline-flex;
   gap: 0.18rem;
-  font-size: 1.05rem;
-  line-height: 1;
 }
 
 .heart {
@@ -726,32 +778,6 @@ input {
   color: var(--text-dim);
   opacity: 0.4;
   text-shadow: none;
-}
-
-.hud__grace {
-  text-align: right;
-  border-color: var(--warning);
-}
-
-.hud__grace strong {
-  font-size: 1.2rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--warning);
-}
-
-.hud__awake {
-  text-align: right;
-  border-color: var(--accent);
-}
-
-.hud__awake strong {
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-}
-
-.hud__awake.is-lethal strong {
-  animation: pulse 0.9s infinite;
 }
 
 /* ---------- Hit / scratch effect ---------- */

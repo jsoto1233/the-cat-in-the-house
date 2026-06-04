@@ -3,24 +3,23 @@ import { Button } from "../components/Button";
 
 const COPY = {
   escaped: {
-    title: "You Escaped",
+    title: "Got away with the loot",
     className: "outcome-escaped",
-    blurb: "The team unlocked the attic and slipped out before the cat closed in."
+    blurb: "Enough valuables in the bag — your crew reached the getaway vehicle and vanished into the night."
   },
   caught: {
-    title: "Caught",
+    title: "The cat caught you",
     className: "outcome-caught",
-    blurb: "The cat hunted the team down. Nobody made it out this time."
+    blurb: "The house wasn't empty after all. The possessed cat stopped every intruder."
   },
   timeout: {
-    title: "Out of Time",
-    className: "outcome-timeout",
-    blurb: "The clock ran out before the house gave up its secrets."
+    title: "Time's up",
+    className: "outcome-timeout"
   }
 } as const;
 
 export function EndScreen() {
-  const { outcome, leaveToMenu } = useGame();
+  const { outcome, leaveToMenu, startSinglePlayer, difficulty } = useGame();
   const data = COPY[outcome ?? "timeout"];
 
   return (
@@ -28,10 +27,13 @@ export function EndScreen() {
       <div className="screen__inner">
         <div className="panel center">
           <h2 className={`overlay__title ${data.className}`}>{data.title}</h2>
-          <p>{data.blurb}</p>
+          {"blurb" in data && <p>{data.blurb}</p>}
           <div className="divider" />
           <div className="btn-stack">
-            <Button onClick={leaveToMenu}>Play again</Button>
+            <Button onClick={() => startSinglePlayer(difficulty)}>Try Again</Button>
+            <Button variant="secondary" onClick={leaveToMenu}>
+              Main Menu
+            </Button>
           </div>
         </div>
       </div>
