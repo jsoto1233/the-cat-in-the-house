@@ -66,6 +66,8 @@ interface GameContextValue {
   difficulty: Difficulty;
   startSinglePlayer: (difficulty?: Difficulty) => void;
   leaveToMenu: () => void;
+  matchTimeLeftMs: number | null;
+  setMatchTimeLeftMs: (ms: number | null) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -85,6 +87,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [matchTimeLeftMs, setMatchTimeLeftMs] = useState<number | null>(null);
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -147,6 +150,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startGame = useCallback(() => {
     client.socket.startGame();
     setOutcome(null);
+    setMatchTimeLeftMs(null);
     setScreen("game");
   }, [client]);
 
@@ -154,12 +158,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startSinglePlayer = useCallback((mode: Difficulty = "normal") => {
     setDifficulty(mode);
     setOutcome(null);
+    setMatchTimeLeftMs(null);
     setScreen("game");
   }, []);
 
   const leaveToMenu = useCallback(() => {
     client.unmountGame();
     setOutcome(null);
+    setMatchTimeLeftMs(null);
     setScreen("menu");
   }, [client]);
 
@@ -184,7 +190,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
-      leaveToMenu
+      leaveToMenu,
+      matchTimeLeftMs,
+      setMatchTimeLeftMs
     }),
     [
       client,
@@ -204,7 +212,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
-      leaveToMenu
+      leaveToMenu,
+      matchTimeLeftMs,
+      setMatchTimeLeftMs
     ]
   );
 

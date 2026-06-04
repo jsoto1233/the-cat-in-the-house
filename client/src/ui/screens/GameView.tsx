@@ -6,6 +6,9 @@ import { PauseOverlay } from "../components/PauseOverlay";
 import { HousePreviewScene, type PreviewState } from "../preview/HousePreviewScene";
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
+const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
+const MATCH_MS_TICK = 1000;
+const MATCH_MS_NORMAL_FAST_INTERVAL = 500; // 2 ticks/s → 2× pace, every second shown
 const OBJECTIVE_INTRO_MS = 7000;
 
 function matchMsForDifficulty(difficulty: string) {
@@ -13,7 +16,7 @@ function matchMsForDifficulty(difficulty: string) {
 }
 
 export function GameView() {
-  const { navigate, difficulty, setOutcome } = useGame();
+  const { navigate, difficulty, setOutcome, matchTimeLeftMs, setMatchTimeLeftMs, leaveToMenu } = useGame();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const difficultyRef = useRef(difficulty);
@@ -21,7 +24,13 @@ export function GameView() {
   const [paused, setPaused] = useState(false);
   const [objectiveVisible, setObjectiveVisible] = useState(true);
   const [objectivePanelOpen, setObjectivePanelOpen] = useState(false);
-  const [timeLeftMs, setTimeLeftMs] = useState(() => matchMsForDifficulty(difficulty));
+  const [timeLeftMs, setTimeLeftMs] = useState(
+    () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
+  );
+
+  useEffect(() => {
+    setMatchTimeLeftMs(timeLeftMs);
+  }, [timeLeftMs, setMatchTimeLeftMs]);
   const [gameOver, setGameOver] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({
     cashFound: 0,
@@ -42,14 +51,17 @@ export function GameView() {
     return () => window.clearTimeout(id);
   }, []);
 
-  // Match timer — counts down each second while the match is running.
+  // Match timer — one displayed second per tick; normal last 30s uses 500ms interval (2×).
+  const normalFastPhase =
+    difficulty === "normal" && timeLeftMs <= MATCH_MS_NORMAL_FAST_THRESHOLD;
   useEffect(() => {
     if (gameplayPaused || timeLeftMs <= 0) return;
+    const intervalMs = normalFastPhase ? MATCH_MS_NORMAL_FAST_INTERVAL : MATCH_MS_TICK;
     const id = window.setInterval(() => {
-      setTimeLeftMs((t) => Math.max(0, t - 1000));
-    }, 1000);
+      setTimeLeftMs((t) => Math.max(0, t - MATCH_MS_TICK));
+    }, intervalMs);
     return () => window.clearInterval(id);
-  }, [gameplayPaused, timeLeftMs]);
+  }, [gameplayPaused, difficulty, normalFastPhase, timeLeftMs <= 0]);
 
   // Time's up — pause gameplay and show the end screen.
   useEffect(() => {
@@ -63,15 +75,20 @@ export function GameView() {
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
     const chosen = difficultyRef.current;
+    const displayDpr = Math.min(window.devicePixelRatio || 1, 2);
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       width: 800,
       height: 600,
       parent: containerRef.current,
       backgroundColor: "#08080c",
+      render: {
+        antialias: true
+      },
       scale: {
         mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        zoom: displayDpr
       },
       callbacks: {
         preBoot: (g) => g.registry.set("difficulty", chosen)
@@ -140,7 +157,7 @@ export function GameView() {
             open={paused}
             onResume={() => setPaused(false)}
             onSettings={() => navigate("settings")}
-            onLeave={() => navigate("menu")}
+            onLeave={leaveToMenu}
           />
         </div>
       </div>
