@@ -3,7 +3,11 @@ import Phaser from "phaser";
 import { useGame } from "../GameContext";
 import { HUD } from "../components/HUD";
 import { PauseOverlay } from "../components/PauseOverlay";
-import { HousePreviewScene, type PreviewState } from "../preview/HousePreviewScene";
+import {
+  PlayableHouseScene,
+  type PreviewState,
+  type MatchOutcome
+} from "../../game/scenes/PlayableHouseScene";
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
 const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
@@ -93,11 +97,18 @@ export function GameView() {
       callbacks: {
         preBoot: (g) => g.registry.set("difficulty", chosen)
       },
-      scene: [HousePreviewScene]
+      scene: [PlayableHouseScene]
     });
     gameRef.current = game;
 
     game.events.on("preview:update", (state: PreviewState) => setPreview(state));
+
+    // Win/lose bridge from gameplay → React (timeout stays handled by the timer).
+    game.events.on("match:over", ({ outcome }: { outcome: MatchOutcome }) => {
+      setGameOver(true);
+      setOutcome(outcome);
+      navigate("end");
+    });
 
     return () => {
       game.destroy(true);
