@@ -7,13 +7,13 @@ import { Credits } from "./screens/Credits";
 import { EndScreen } from "./screens/EndScreen";
 
 export function App() {
-  const { screen } = useGame();
+  const { screen, gameSessionKey } = useGame();
 
   switch (screen) {
     case "lobby":
       return <Lobby />;
     case "game":
-      return <GameView />;
+      return <GameView key={gameSessionKey} />;
     case "settings":
       return <Settings />;
     case "credits":

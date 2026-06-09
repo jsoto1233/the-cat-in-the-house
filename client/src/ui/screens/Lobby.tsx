@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useGame } from "../GameContext";
 import { Button } from "../components/Button";
 import type { PlayerState } from "../../types";
@@ -6,11 +6,9 @@ import type { PlayerState } from "../../types";
 const MAX_PLAYERS = 4;
 
 export function Lobby() {
-  const { room, roomId, localId, playerName, startGame, leaveToMenu, connected } =
+  const { room, roomId, localId, playerName, startGame, leaveToMenu, connected, setReady } =
     useGame();
-  const [ready, setReady] = useState(false);
 
-  // Use live room players when connected; otherwise show a local demo roster.
   const players: PlayerState[] = useMemo(() => {
     if (room) return Object.values(room.players);
     return [
@@ -25,7 +23,10 @@ export function Lobby() {
     ];
   }, [room, localId, playerName]);
 
-  const isHost = !room || players[0]?.id === (localId || "you");
+  const isHost = room ? room.hostId === localId : players[0]?.id === (localId || "you");
+  const you = room?.players[localId];
+  const ready = you?.ready ?? false;
+  const allReady = players.length > 0 && players.every((p) => p.ready);
 
   return (
     <div className="screen">
@@ -58,13 +59,13 @@ export function Lobby() {
                   </li>
                 );
               }
-              const isYou = player.id === (localId || "you");
-              const isReady = isYou ? ready : true;
+              const isYou = player.id === localId;
+              const isReady = !!player.ready;
               return (
                 <li key={player.id} className="slot">
                   <span className="slot__name">
                     {player.name}
-                    {i === 0 && <span className="tag">Host</span>}
+                    {player.id === room?.hostId && <span className="tag">Host</span>}
                     {isYou && <span className="tag">You</span>}
                   </span>
                   <span className={isReady ? "ready-yes" : "ready-no"}>
@@ -75,14 +76,14 @@ export function Lobby() {
             })}
           </ul>
 
-          <p className="lobby-note dim">Co-op: search rooms, collect $ valuables, and escape. Multiplayer supports 4 robbers + 1 cat (asymmetric role soon).</p>
+          <p className="lobby-note dim">Co-op: search rooms, collect $ valuables, and escape together. Up to 4 robbers.</p>
 
           <div className="btn-stack">
-            <Button variant="secondary" onClick={() => setReady((r) => !r)}>
+            <Button variant="secondary" onClick={() => setReady(!ready)}>
               {ready ? "Unready" : "Ready up"}
             </Button>
             {isHost && (
-              <Button disabled={!ready} onClick={startGame}>
+              <Button disabled={!allReady} onClick={startGame}>
                 Start game
               </Button>
             )}

@@ -62,12 +62,16 @@ interface GameContextValue {
   updateSettings: (patch: Partial<Settings>) => void;
   createRoom: (name: string) => void;
   joinRoom: (name: string, roomId: string) => void;
+  setReady: (ready: boolean) => void;
   startGame: () => void;
   difficulty: Difficulty;
   startSinglePlayer: (difficulty?: Difficulty) => void;
   leaveToMenu: () => void;
   matchTimeLeftMs: number | null;
   setMatchTimeLeftMs: (ms: number | null) => void;
+  hostId: string;
+  gamePlayerIds: string[];
+  gameSessionKey: number;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -88,6 +92,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [matchTimeLeftMs, setMatchTimeLeftMs] = useState<number | null>(null);
+  const [hostId, setHostId] = useState("");
+  const [gamePlayerIds, setGamePlayerIds] = useState<string[]>([]);
+  const [gameSessionKey, setGameSessionKey] = useState(0);
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -95,10 +102,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setLocalId(id);
     });
     const offRoom = client.onRoom((state) => setRoom(state));
+    const offGameStart = client.onGameStart(({ hostId: h, playerIds }) => {
+      setHostId(h);
+      setGamePlayerIds(playerIds);
+      setOutcome(null);
+      setMatchTimeLeftMs(null);
+      setGameSessionKey((k) => k + 1);
+      setScreen("game");
+    });
     client.socket.onDisconnected(() => setConnected(false));
     return () => {
       offConnect();
       offRoom();
+      offGameStart();
     };
   }, [client]);
 
@@ -149,21 +165,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const startGame = useCallback(() => {
     client.socket.startGame();
-    setOutcome(null);
-    setMatchTimeLeftMs(null);
-    setScreen("game");
   }, [client]);
+
+  const setReady = useCallback(
+    (ready: boolean) => {
+      client.socket.setReady(ready);
+    },
+    [client]
+  );
 
   // Offline single-player: jump straight to the local preview, no lobby/socket.
   const startSinglePlayer = useCallback((mode: Difficulty = "normal") => {
     setDifficulty(mode);
+    setHostId("");
+    setGamePlayerIds([]);
     setOutcome(null);
     setMatchTimeLeftMs(null);
+    setGameSessionKey((k) => k + 1);
     setScreen("game");
   }, []);
 
   const leaveToMenu = useCallback(() => {
+    client.socket.leaveRoom();
     client.unmountGame();
+    setRoom(undefined);
+    setRoomId("");
+    setHostId("");
+    setGamePlayerIds([]);
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setScreen("menu");
@@ -192,7 +220,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startSinglePlayer,
       leaveToMenu,
       matchTimeLeftMs,
-      setMatchTimeLeftMs
+      setMatchTimeLeftMs,
+      hostId,
+      setReady,
+      gamePlayerIds,
+      gameSessionKey
     }),
     [
       client,
@@ -214,7 +246,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startSinglePlayer,
       leaveToMenu,
       matchTimeLeftMs,
-      setMatchTimeLeftMs
+      setMatchTimeLeftMs,
+      hostId,
+      setReady,
+      gamePlayerIds,
+      gameSessionKey
     ]
   );
 

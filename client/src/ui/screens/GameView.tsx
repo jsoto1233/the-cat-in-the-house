@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
-import { useGame } from "../GameContext";
+import { useGame, type Outcome } from "../GameContext";
 import { HUD } from "../components/HUD";
 import { PauseOverlay } from "../components/PauseOverlay";
 import {
@@ -8,11 +8,13 @@ import {
   type PreviewState,
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
+import type { GameSyncState } from "../../game/GameClient";
+
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
 const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
 const MATCH_MS_TICK = 1000;
-const MATCH_MS_NORMAL_FAST_INTERVAL = 500; // 2 ticks/s → 2× pace, every second shown
+const MATCH_MS_NORMAL_FAST_INTERVAL = 500;
 const OBJECTIVE_INTRO_MS = 7000;
 
 function matchMsForDifficulty(difficulty: string) {
@@ -20,10 +22,28 @@ function matchMsForDifficulty(difficulty: string) {
 }
 
 export function GameView() {
-  const { navigate, difficulty, setOutcome, matchTimeLeftMs, setMatchTimeLeftMs, leaveToMenu } = useGame();
+  const {
+    navigate,
+    difficulty,
+    setOutcome,
+    matchTimeLeftMs,
+    setMatchTimeLeftMs,
+    leaveToMenu,
+    client,
+    localId,
+    hostId,
+    gamePlayerIds,
+    connected,
+    gameSessionKey
+  } = useGame();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const difficultyRef = useRef(difficulty);
+  const timeLeftRef = useRef(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
+  const setTimeLeftRef = useRef<(ms: number) => void>(() => {});
+
+  const isMultiplayer = !!hostId && connected;
+  const isHost = !isMultiplayer || client.localId === hostId;
 
   const [paused, setPaused] = useState(false);
   const [objectiveVisible, setObjectiveVisible] = useState(true);
@@ -31,10 +51,6 @@ export function GameView() {
   const [timeLeftMs, setTimeLeftMs] = useState(
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
-
-  useEffect(() => {
-    setMatchTimeLeftMs(timeLeftMs);
-  }, [timeLeftMs, setMatchTimeLeftMs]);
   const [gameOver, setGameOver] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({
     cashFound: 0,
@@ -46,77 +62,115 @@ export function GameView() {
     difficulty
   });
 
+  setTimeLeftRef.current = setTimeLeftMs;
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeftMs;
+    setMatchTimeLeftMs(timeLeftMs);
+  }, [timeLeftMs, setMatchTimeLeftMs]);
+
   const showObjectivePanel = objectiveVisible || objectivePanelOpen;
   const gameplayPaused = paused || objectivePanelOpen || gameOver;
 
-  // Intro: show objective panel briefly, then hide text (button stays).
   useEffect(() => {
     const id = window.setTimeout(() => setObjectiveVisible(false), OBJECTIVE_INTRO_MS);
     return () => window.clearTimeout(id);
   }, []);
 
-  // Match timer — one displayed second per tick; normal last 30s uses 500ms interval (2×).
   const normalFastPhase =
     difficulty === "normal" && timeLeftMs <= MATCH_MS_NORMAL_FAST_THRESHOLD;
+
   useEffect(() => {
-    if (gameplayPaused || timeLeftMs <= 0) return;
+    if (!isHost || gameplayPaused || timeLeftMs <= 0) return;
     const intervalMs = normalFastPhase ? MATCH_MS_NORMAL_FAST_INTERVAL : MATCH_MS_TICK;
     const id = window.setInterval(() => {
       setTimeLeftMs((t) => Math.max(0, t - MATCH_MS_TICK));
     }, intervalMs);
     return () => window.clearInterval(id);
-  }, [gameplayPaused, difficulty, normalFastPhase, timeLeftMs <= 0]);
+  }, [isHost, gameplayPaused, difficulty, normalFastPhase, timeLeftMs <= 0]);
 
-  // Time's up — pause gameplay and show the end screen.
   useEffect(() => {
-    if (timeLeftMs > 0 || gameOver) return;
+    if (!isHost || timeLeftMs > 0 || gameOver) return;
     setGameOver(true);
     setOutcome("timeout");
+    if (isMultiplayer) client.socket.sendGameOver("timeout");
     navigate("end");
-  }, [timeLeftMs, gameOver, setOutcome, navigate]);
+  }, [timeLeftMs, gameOver, isHost, isMultiplayer, client, setOutcome, navigate]);
 
-  // Mount a self-contained Phaser preview (visual layout only — game logic deferred).
   useEffect(() => {
-    if (!containerRef.current || gameRef.current) return;
-    const chosen = difficultyRef.current;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const mp = !!hostId && connected;
+    const host = !mp || client.localId === hostId;
+    const ids =
+      mp && gamePlayerIds.length > 0 ? gamePlayerIds : [client.localId || localId || "p1"];
     const displayDpr = Math.min(window.devicePixelRatio || 1, 2);
+
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       width: 800,
       height: 600,
-      parent: containerRef.current,
+      parent: container,
       backgroundColor: "#08080c",
-      render: {
-        antialias: true
-      },
+      render: { antialias: true },
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
         zoom: displayDpr
       },
       callbacks: {
-        preBoot: (g) => g.registry.set("difficulty", chosen)
+        preBoot: (g) => {
+          g.registry.set("difficulty", difficulty);
+          g.registry.set("multiplayer", mp);
+          g.registry.set("localId", client.localId || localId || "p1");
+          g.registry.set("isHost", host);
+          g.registry.set("playerIds", ids);
+          g.registry.set("getTimeLeftMs", () => timeLeftRef.current);
+          g.registry.set(
+            "onMove",
+            mp ? (x: number, y: number) => client.socket.sendMove(x, y) : undefined
+          );
+          g.registry.set("onHostSync", (state: GameSyncState) => client.socket.sendGameState(state));
+          g.registry.set("onMatchOver", (outcome: string) => client.socket.sendGameOver(outcome));
+          g.registry.set("attachNetwork", (scene: PlayableHouseScene) => {
+            client.attachScene(scene, {
+              isHost: host,
+              onTimeSync: (ms) => setTimeLeftRef.current(ms),
+              onGameOver: (outcome) => {
+                setGameOver(true);
+                setOutcome(outcome as Outcome);
+                navigate("end");
+              }
+            });
+          });
+          g.registry.set("detachNetwork", () => client.detachScene());
+        }
       },
       scene: [PlayableHouseScene]
     });
+
     gameRef.current = game;
 
-    game.events.on("preview:update", (state: PreviewState) => setPreview(state));
-
-    // Win/lose bridge from gameplay → React (timeout stays handled by the timer).
-    game.events.on("match:over", ({ outcome }: { outcome: MatchOutcome }) => {
+    const onPreview = (state: PreviewState) => setPreview(state);
+    const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
       setGameOver(true);
       setOutcome(outcome);
       navigate("end");
-    });
+    };
+
+    game.events.on("preview:update", onPreview);
+    game.events.on("match:over", onMatchOver);
 
     return () => {
+      game.events.off("preview:update", onPreview);
+      game.events.off("match:over", onMatchOver);
+      client.detachScene();
       game.destroy(true);
       gameRef.current = null;
     };
-  }, []);
+  }, [gameSessionKey]);
 
-  // Pause with Escape; also pause/resume the Phaser scene.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !gameOver) setPaused((p) => !p);
@@ -132,11 +186,9 @@ export function GameView() {
     else scene.resume("HousePreview");
   }, [gameplayPaused]);
 
-  const handleObjectiveToggle = () => {
-    setObjectivePanelOpen((open) => !open);
-  };
-
-  const objective = "Solo heist: search the house, collect $ valuables, and escape.";
+  const objective = isMultiplayer
+    ? "Co-op heist: collect all $ valuables and reach the back door together."
+    : "Solo heist: search the house, collect $ valuables, and escape.";
 
   return (
     <div className="game">
@@ -145,7 +197,7 @@ export function GameView() {
           objective={objective}
           showObjectivePanel={showObjectivePanel}
           objectivePanelActive={objectivePanelOpen}
-          onObjectiveToggle={handleObjectiveToggle}
+          onObjectiveToggle={() => setObjectivePanelOpen((open) => !open)}
           timeLeftMs={timeLeftMs}
           cashFound={preview.cashFound}
           cashTotal={preview.cashTotal}

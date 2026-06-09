@@ -17,6 +17,7 @@ export interface PlayerState {
   y: number;
   alive: boolean;
   clues: string[];
+  ready?: boolean;
 }
 
 export interface CatState {
@@ -25,6 +26,7 @@ export interface CatState {
 
 export interface RoomState {
   players: Record<string, PlayerState>;
+  hostId?: string;
   timeLeftMs: number;
   cluesFound: string[];
   cat: CatState;

@@ -62,6 +62,13 @@ const CASH_TOTAL = 4;
 const LIVES_TOTAL = 3;
 
 const PLAYER_SPAWN = { x: 400, y: 300 };
+const PLAYER_SPAWNS = [
+  { x: 380, y: 300 },
+  { x: 420, y: 300 },
+  { x: 380, y: 320 },
+  { x: 420, y: 320 }
+];
+const PLAYER_COLORS = [0x4aa3df, 0x4adf7a, 0xdf4a9f, 0xdfae4a];
 const CAT_SPAWN = { x: 440, y: 150 };
 
 const PLAYER_SPEED = 165; // px/s
@@ -116,6 +123,16 @@ interface MoneyMarker {
 
 export class PlayableHouseScene extends Phaser.Scene {
   private difficulty: PreviewDifficulty = "normal";
+  private multiplayer = false;
+  private isHost = true;
+  private localId = "p1";
+  private playerIds: string[] = ["p1"];
+  private remotePlayers = new Map<string, Phaser.GameObjects.Container>();
+  private remotePositions = new Map<string, { x: number; y: number; alive: boolean }>();
+  private syncTimer = 0;
+  private onMove?: (x: number, y: number) => void;
+  private onHostSync?: (state: Record<string, unknown>) => void;
+  private getTimeLeftMs?: () => number;
 
   private collisionMap!: CollisionMap;
   private cat!: CatAI;
@@ -155,6 +172,18 @@ export class PlayableHouseScene extends Phaser.Scene {
   create() {
     const mode = this.registry.get("difficulty");
     this.difficulty = mode === "ludicrous" ? "ludicrous" : "normal";
+    this.multiplayer = !!this.registry.get("multiplayer");
+    this.localId = this.registry.get("localId") ?? "p1";
+    this.isHost = this.registry.get("isHost") ?? true;
+    this.playerIds = this.registry.get("playerIds") ?? [this.localId];
+    this.onMove = this.registry.get("onMove");
+    this.onHostSync = this.registry.get("onHostSync");
+    this.getTimeLeftMs = this.registry.get("getTimeLeftMs");
+
+    const spawnIdx = Math.max(0, this.playerIds.indexOf(this.localId));
+    const spawn = this.multiplayer ? PLAYER_SPAWNS[spawnIdx] ?? PLAYER_SPAWN : PLAYER_SPAWN;
+    this.playerX = spawn.x;
+    this.playerY = spawn.y;
 
     this.cameras.main.setBackgroundColor("#08080c");
 
@@ -162,10 +191,24 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.buildCollisionMap();
     this.spawnMoney();
     this.buildEntities();
+    if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
     this.setupCat();
 
+    this.playerContainer.setPosition(this.playerX, this.playerY);
+    this.onMove?.(this.playerX, this.playerY);
+
+    const attachNetwork = this.registry.get("attachNetwork") as
+      | ((scene: PlayableHouseScene) => void)
+      | undefined;
+    attachNetwork?.(this);
+
     this.emitPreview(true);
+  }
+
+  shutdown() {
+    const detachNetwork = this.registry.get("detachNetwork") as (() => void) | undefined;
+    detachNetwork?.();
   }
 
   update(_time: number, delta: number) {
@@ -173,19 +216,23 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     const dt = Math.min(delta, 50) / 1000;
 
+    if (this.multiplayer && !this.isHost) {
+      this.invulnRemaining = Math.max(0, this.invulnRemaining - dt);
+      this.movePlayer(dt);
+      this.syncRemoteSprites();
+      this.updateInvulnVisual();
+      return;
+    }
+
     this.invulnRemaining = Math.max(0, this.invulnRemaining - dt);
     this.movePlayer(dt);
 
-    // Feed live hunt context (loot count + remaining loot) so the cat's
-    // behavior layer can HUNT / INTERCEPT / STALK / PATROL intelligently.
     const uncollectedLoot = this.money
       .filter((m) => !m.collected)
       .map((m) => ({ x: m.x, y: m.y }));
     this.cat.setHuntContext(this.cashFound, uncollectedLoot);
 
-    this.cat.update(delta, [
-      { id: "p1", x: this.playerX, y: this.playerY, alive: true }
-    ]);
+    this.cat.update(delta, this.getAllPlayerStates());
     this.catContainer.setPosition(this.cat.x, this.cat.y);
 
     this.checkPickups();
@@ -194,6 +241,15 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     this.syncMoodAndAttic();
     this.updateInvulnVisual();
+    this.syncRemoteSprites();
+
+    if (this.multiplayer && this.isHost) {
+      this.syncTimer += delta;
+      if (this.syncTimer >= 50) {
+        this.syncTimer = 0;
+        this.onHostSync?.(this.buildSyncState());
+      }
+    }
   }
 
   // ---------- world / layout ----------
@@ -311,51 +367,160 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerX = resolved.x;
     this.playerY = resolved.y;
     this.playerContainer.setPosition(this.playerX, this.playerY);
+    this.onMove?.(this.playerX, this.playerY);
+  }
+
+  private getAllPlayerStates() {
+    const states = [{ id: this.localId, x: this.playerX, y: this.playerY, alive: true }];
+    for (const [id, pos] of this.remotePositions) {
+      if (id === this.localId) continue;
+      states.push({ id, x: pos.x, y: pos.y, alive: pos.alive });
+    }
+    return states;
+  }
+
+  setRemotePosition(id: string, x: number, y: number) {
+    if (id === this.localId) return;
+    this.remotePositions.set(id, { x, y, alive: true });
+    this.ensureRemotePlayer(id).setPosition(x, y);
+  }
+
+  private syncRemoteSprites() {
+    for (const [id, container] of this.remotePlayers) {
+      const pos = this.remotePositions.get(id);
+      if (pos) container.setPosition(pos.x, pos.y);
+    }
+  }
+
+  applyGameState(state: {
+    players: Record<string, { x: number; y: number; alive: boolean }>;
+    cashFound: number;
+    collectedLoot: number[];
+    cat: { x: number; y: number; mood: string };
+    lives: number;
+    timeLeftMs: number;
+    matchEnded?: boolean;
+    outcome?: MatchOutcome;
+  }) {
+    this.cashFound = state.cashFound;
+    this.lives = state.lives;
+    state.collectedLoot.forEach((idx) => {
+      const m = this.money[idx];
+      if (m && !m.collected) {
+        m.collected = true;
+        m.container.destroy();
+      }
+    });
+    this.cat.x = state.cat.x;
+    this.cat.y = state.cat.y;
+    this.catContainer.setPosition(state.cat.x, state.cat.y);
+    this.lastMood = state.cat.mood as PreviewMood;
+    for (const [id, p] of Object.entries(state.players)) {
+      if (id === this.localId) continue;
+      this.remotePositions.set(id, { x: p.x, y: p.y, alive: p.alive });
+      this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
+    }
+    this.emitPreview();
+    if (state.matchEnded && state.outcome) this.endMatch(state.outcome);
+  }
+
+  private buildSyncState() {
+    const players: Record<string, { x: number; y: number; alive: boolean }> = {};
+    players[this.localId] = { x: this.playerX, y: this.playerY, alive: true };
+    for (const [id, pos] of this.remotePositions) {
+      players[id] = { x: pos.x, y: pos.y, alive: pos.alive };
+    }
+    return {
+      players,
+      cashFound: this.cashFound,
+      collectedLoot: this.money.map((m, i) => (m.collected ? i : -1)).filter((i) => i >= 0),
+      cat: { x: this.cat.x, y: this.cat.y, mood: this.cat.mood },
+      lives: this.lives,
+      timeLeftMs: this.getTimeLeftMs?.() ?? 60000,
+      matchEnded: this.matchEnded
+    };
+  }
+
+  private spawnRemotePlayers() {
+    this.playerIds.forEach((id, i) => {
+      if (id === this.localId) return;
+      const spawn = PLAYER_SPAWNS[i] ?? PLAYER_SPAWN;
+      this.remotePlayers.set(id, this.buildPlayer(spawn.x, spawn.y, PLAYER_COLORS[i] ?? PALETTE.player));
+      this.remotePositions.set(id, { x: spawn.x, y: spawn.y, alive: true });
+    });
+  }
+
+  private ensureRemotePlayer(id: string) {
+    if (this.remotePlayers.has(id)) return this.remotePlayers.get(id)!;
+    const idx = this.playerIds.indexOf(id);
+    const container = this.buildPlayer(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_COLORS[idx] ?? PALETTE.player);
+    this.remotePlayers.set(id, container);
+    return container;
   }
 
   private checkPickups() {
     for (const m of this.money) {
       if (m.collected) continue;
-      if (this.distTo(m.x, m.y) <= PICKUP_RADIUS) {
+      for (const p of this.getAllPlayerStates()) {
+        if (!p.alive) continue;
+        const dx = p.x - m.x;
+        const dy = p.y - m.y;
+        if (Math.sqrt(dx * dx + dy * dy) > PICKUP_RADIUS) continue;
         m.collected = true;
         m.container.destroy();
         this.cashFound = Math.min(CASH_TOTAL, this.cashFound + 1);
-        // Grabbing loot stirs the cat (mirrors clue_collected behavior).
-        this.cat.onClueCollected("p1", `cash_${this.cashFound}`);
+        this.cat.onClueCollected(p.id, `cash_${this.cashFound}`);
         this.emitPreview();
+        break;
       }
     }
   }
 
   private checkCatch() {
     if (this.invulnRemaining > 0) return;
-    const dx = this.cat.x - this.playerX;
-    const dy = this.cat.y - this.playerY;
-    if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) return;
+    for (const p of this.getAllPlayerStates()) {
+      if (!p.alive) continue;
+      const dx = this.cat.x - p.x;
+      const dy = this.cat.y - p.y;
+      if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) continue;
 
-    this.lives = Math.max(0, this.lives - 1);
-    this.emitPreview();
+      this.lives = Math.max(0, this.lives - 1);
+      this.emitPreview();
 
-    if (this.lives <= 0) {
-      this.endMatch("caught");
+      if (this.lives <= 0) {
+        this.endMatch("caught");
+        return;
+      }
+
+      this.invulnRemaining = INVULN_SECONDS;
+      if (p.id === this.localId) {
+        this.playerX = PLAYER_SPAWN.x;
+        this.playerY = PLAYER_SPAWN.y;
+        this.playerContainer.setPosition(this.playerX, this.playerY);
+      } else {
+        const idx = this.playerIds.indexOf(p.id);
+        const spawn = PLAYER_SPAWNS[idx] ?? PLAYER_SPAWN;
+        this.remotePositions.set(p.id, { x: spawn.x, y: spawn.y, alive: true });
+        this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
+      }
+      this.cat.x = CAT_SPAWN.x;
+      this.cat.y = CAT_SPAWN.y;
+      this.catContainer.setPosition(this.cat.x, this.cat.y);
+      this.cat.calm(25);
       return;
     }
-
-    // Survived a hit: respawn, brief mercy window, and back the cat off.
-    this.invulnRemaining = INVULN_SECONDS;
-    this.playerX = PLAYER_SPAWN.x;
-    this.playerY = PLAYER_SPAWN.y;
-    this.playerContainer.setPosition(this.playerX, this.playerY);
-    this.cat.x = CAT_SPAWN.x;
-    this.cat.y = CAT_SPAWN.y;
-    this.catContainer.setPosition(this.cat.x, this.cat.y);
-    this.cat.calm(25);
   }
 
   private checkEscape() {
     if (this.cashFound < CASH_TOTAL) return;
-    if (this.distTo(this.backDoor.x, this.backDoor.y) <= ESCAPE_RADIUS) {
-      this.endMatch("escaped");
+    for (const p of this.getAllPlayerStates()) {
+      if (!p.alive) continue;
+      const dx = p.x - this.backDoor.x;
+      const dy = p.y - this.backDoor.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= ESCAPE_RADIUS) {
+        this.endMatch("escaped");
+        return;
+      }
     }
   }
 
@@ -376,13 +541,19 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (this.matchEnded) return;
     this.matchEnded = true;
     this.emitPreview();
+    if (this.multiplayer && this.isHost) {
+      this.onHostSync?.({ ...this.buildSyncState(), matchEnded: true, outcome });
+      this.registry.get("onMatchOver")?.(outcome);
+    }
     this.game.events.emit("match:over", { outcome });
   }
 
   // ---------- preview emit ----------
 
   private emitPreview(_initial = false) {
-    this.lastMood = this.cat ? this.cat.mood : "calm";
+    if (!this.multiplayer || this.isHost) {
+      this.lastMood = this.cat ? this.cat.mood : "calm";
+    }
     this.lastAtticUnlocked = this.cashFound >= CASH_TOTAL;
     const state: PreviewState = {
       cashFound: this.cashFound,
@@ -498,13 +669,13 @@ export class PlayableHouseScene extends Phaser.Scene {
     return container;
   }
 
-  private buildPlayer(x: number, y: number): Phaser.GameObjects.Container {
+  private buildPlayer(x: number, y: number, color = PALETTE.player): Phaser.GameObjects.Container {
     const shadow = this.add.ellipse(0, 12, 26, 10, 0x000000, 0.4);
-    const body = this.add.circle(0, 0, 12, PALETTE.player);
+    const body = this.add.circle(0, 0, 12, color);
     const ring = this.add.circle(0, 0, 12).setStrokeStyle(2, PALETTE.playerDark);
     const eyeL = this.add.circle(-4, -3, 1.8, 0x0a0a0f);
     const eyeR = this.add.circle(4, -3, 1.8, 0x0a0a0f);
-    const dir = this.add.triangle(0, 14, 0, 0, 5, 8, -5, 8, PALETTE.player);
+    const dir = this.add.triangle(0, 14, 0, 0, 5, 8, -5, 8, color);
     dir.setRotation(-Math.PI / 2);
     return this.add.container(x, y, [shadow, dir, body, ring, eyeL, eyeR]).setDepth(5);
   }
