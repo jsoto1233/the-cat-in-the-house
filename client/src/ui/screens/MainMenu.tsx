@@ -109,7 +109,7 @@ export function MainMenu() {
                     onClick={() => setDifficulty("normal")}
                   >
                     Normal
-                    <small>15s grace · fair</small>
+                    <small>fair pace · no mercy delay</small>
                   </button>
                   <button
                     type="button"

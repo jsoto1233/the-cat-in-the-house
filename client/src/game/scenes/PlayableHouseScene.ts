@@ -342,7 +342,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   private setupCat() {
     this.cat = new CatAI(CAT_SPAWN, 800, 600, this.collisionMap);
     this.cat.reset();
-    // Difficulty drives the hunt timer (normal 15s / ludicrous 0s) and the
+    // Difficulty drives hunt cadence (both modes hunt immediately; ludicrous re-plans faster) and the
     // behavior re-evaluation cadence inside CatAI.
     this.cat.setDifficulty(this.difficulty);
   }

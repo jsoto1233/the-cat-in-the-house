@@ -60,7 +60,7 @@ const MOOD_SPEED_MULT: Record<CatMood, number> = {
 const MAX_STEP_PX = 8;
 
 // Behavior-layer tuning.
-const HUNT_DELAY_NORMAL = 15; // seconds before the cat commits to the hunt
+const HUNT_DELAY_NORMAL = 0; // no opening grace — cat hunts immediately on normal too
 const HUNT_DELAY_LUDICROUS = 0;
 const REEVAL_COOLDOWN_NORMAL = 2.5; // seconds between behavior decisions
 const REEVAL_COOLDOWN_LUDICROUS = 0.8;
