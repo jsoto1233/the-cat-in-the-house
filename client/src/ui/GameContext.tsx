@@ -63,6 +63,7 @@ interface GameContextValue {
   createRoom: (name: string) => void;
   joinRoom: (name: string, roomId: string) => void;
   setReady: (ready: boolean) => void;
+  setDifficulty: (difficulty: Difficulty) => void;
   startGame: () => void;
   difficulty: Difficulty;
   startSinglePlayer: (difficulty?: Difficulty) => void;
@@ -101,10 +102,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setConnected(true);
       setLocalId(id);
     });
-    const offRoom = client.onRoom((state) => setRoom(state));
-    const offGameStart = client.onGameStart(({ hostId: h, playerIds }) => {
+    const offRoom = client.onRoom((state) => {
+      setRoom(state);
+      if (state.difficulty) setDifficulty(state.difficulty);
+    });
+    const offGameStart = client.onGameStart(({ hostId: h, playerIds, difficulty: mode }) => {
       setHostId(h);
       setGamePlayerIds(playerIds);
+      setDifficulty(mode);
       setOutcome(null);
       setMatchTimeLeftMs(null);
       setGameSessionKey((k) => k + 1);
@@ -174,6 +179,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [client]
   );
 
+  const setDifficultyMode = useCallback(
+    (mode: Difficulty) => {
+      setDifficulty(mode);
+      client.socket.setDifficulty(mode);
+    },
+    [client]
+  );
+
   // Offline single-player: jump straight to the local preview, no lobby/socket.
   const startSinglePlayer = useCallback((mode: Difficulty = "normal") => {
     setDifficulty(mode);
@@ -223,6 +236,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setMatchTimeLeftMs,
       hostId,
       setReady,
+      setDifficulty: setDifficultyMode,
       gamePlayerIds,
       gameSessionKey
     }),
@@ -249,6 +263,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setMatchTimeLeftMs,
       hostId,
       setReady,
+      setDifficultyMode,
       gamePlayerIds,
       gameSessionKey
     ]

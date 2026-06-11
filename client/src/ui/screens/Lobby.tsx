@@ -1,13 +1,23 @@
 import { useMemo } from "react";
-import { useGame } from "../GameContext";
+import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
 import type { PlayerState } from "../../types";
 
 const MAX_PLAYERS = 4;
 
 export function Lobby() {
-  const { room, roomId, localId, playerName, startGame, leaveToMenu, connected, setReady } =
-    useGame();
+  const {
+    room,
+    roomId,
+    localId,
+    playerName,
+    startGame,
+    leaveToMenu,
+    connected,
+    setReady,
+    difficulty,
+    setDifficulty
+  } = useGame();
 
   const players: PlayerState[] = useMemo(() => {
     if (room) return Object.values(room.players);
@@ -27,6 +37,11 @@ export function Lobby() {
   const you = room?.players[localId];
   const ready = you?.ready ?? false;
   const allReady = players.length > 0 && players.every((p) => p.ready);
+  const lobbyDifficulty = room?.difficulty ?? difficulty;
+
+  const pickDifficulty = (mode: Difficulty) => {
+    if (isHost) setDifficulty(mode);
+  };
 
   return (
     <div className="screen">
@@ -75,6 +90,36 @@ export function Lobby() {
               );
             })}
           </ul>
+
+          <div className="difficulty">
+            <span className="difficulty__label">
+              {isHost ? "Co-op difficulty" : "Difficulty (host sets)"}
+            </span>
+            <div className="difficulty__toggle" role="group" aria-label="Difficulty">
+              <button
+                type="button"
+                className={`difficulty__opt ${lobbyDifficulty === "normal" ? "is-active" : ""}`}
+                aria-pressed={lobbyDifficulty === "normal"}
+                disabled={!isHost}
+                onClick={() => pickDifficulty("normal")}
+              >
+                Normal
+                <small>60s · fair pace</small>
+              </button>
+              <button
+                type="button"
+                className={`difficulty__opt difficulty__opt--ludicrous ${
+                  lobbyDifficulty === "ludicrous" ? "is-active" : ""
+                }`}
+                aria-pressed={lobbyDifficulty === "ludicrous"}
+                disabled={!isHost}
+                onClick={() => pickDifficulty("ludicrous")}
+              >
+                Ludicrous
+                <small>30s · no mercy</small>
+              </button>
+            </div>
+          </div>
 
           <p className="lobby-note dim">Co-op: search rooms, collect $ valuables, and escape together. Up to 4 robbers.</p>
 

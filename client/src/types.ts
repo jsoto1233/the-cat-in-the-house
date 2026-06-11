@@ -24,9 +24,12 @@ export interface CatState {
   mood: CatMood;
 }
 
+export type RoomDifficulty = "normal" | "ludicrous";
+
 export interface RoomState {
   players: Record<string, PlayerState>;
   hostId?: string;
+  difficulty?: RoomDifficulty;
   timeLeftMs: number;
   cluesFound: string[];
   cat: CatState;

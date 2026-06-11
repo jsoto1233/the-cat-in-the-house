@@ -29,6 +29,7 @@ function roomPayload(room) {
   return {
     players,
     hostId: room.hostId,
+    difficulty: room.difficulty ?? "normal",
     timeLeftMs: room.timeLeftMs ?? 60000,
     cluesFound: room.cluesFound ?? [],
     cat: room.cat ?? { mood: "calm" },
@@ -69,6 +70,7 @@ io.on("connection", (socket) => {
       code: id,
       hostId: socket.id,
       inGame: false,
+      difficulty: "normal",
       players: new Map(),
       timeLeftMs: 60000,
       cluesFound: [],
@@ -129,6 +131,13 @@ io.on("connection", (socket) => {
     broadcastRoom(room);
   });
 
+  socket.on("set_difficulty", ({ difficulty }) => {
+    const room = getRoom(socket);
+    if (!room || socket.id !== room.hostId || room.inGame) return;
+    room.difficulty = difficulty === "ludicrous" ? "ludicrous" : "normal";
+    broadcastRoom(room);
+  });
+
   socket.on("start_game", () => {
     const room = getRoom(socket);
     if (!room || socket.id !== room.hostId || room.inGame) return;
@@ -137,9 +146,11 @@ io.on("connection", (socket) => {
       if (!p.ready) return;
     }
     room.inGame = true;
+    room.timeLeftMs = room.difficulty === "ludicrous" ? 30000 : 60000;
     io.to(room.code).emit("game_start", {
       hostId: room.hostId,
-      playerIds: [...room.players.keys()]
+      playerIds: [...room.players.keys()],
+      difficulty: room.difficulty ?? "normal"
     });
   });
 

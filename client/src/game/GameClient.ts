@@ -6,7 +6,11 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 
 type ConnectedHandler = (id: string) => void;
 type RoomHandler = (state: RoomState) => void;
-type GameStartHandler = (payload: { hostId: string; playerIds: string[] }) => void;
+type GameStartHandler = (payload: {
+  hostId: string;
+  playerIds: string[];
+  difficulty: "normal" | "ludicrous";
+}) => void;
 type GameStateHandler = (state: GameSyncState) => void;
 type GameOverHandler = (payload: { outcome: string }) => void;
 type PlayerMoveHandler = (payload: { id: string; x: number; y: number }) => void;
@@ -49,6 +53,10 @@ class GameSocket {
 
   setReady(ready: boolean): void {
     this.ioSocket.emit("set_ready", { ready });
+  }
+
+  setDifficulty(difficulty: "normal" | "ludicrous"): void {
+    this.ioSocket.emit("set_difficulty", { difficulty });
   }
 
   startGame(): void {
@@ -103,9 +111,12 @@ export class GameClient {
       this.roomHandlers.forEach((cb) => cb(state));
     });
 
-    this.ioSocket.on("game_start", (payload: { hostId: string; playerIds: string[] }) => {
-      this.gameStartHandlers.forEach((cb) => cb(payload));
-    });
+    this.ioSocket.on(
+      "game_start",
+      (payload: { hostId: string; playerIds: string[]; difficulty: "normal" | "ludicrous" }) => {
+        this.gameStartHandlers.forEach((cb) => cb(payload));
+      }
+    );
 
     this.ioSocket.on("game_state", (state: GameSyncState) => {
       this.gameStateHandlers.forEach((cb) => cb(state));
