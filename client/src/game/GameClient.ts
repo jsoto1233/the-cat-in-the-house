@@ -1,6 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 import type { RoomState } from "../types";
-import type { PlayableHouseScene } from "./scenes/PlayableHouseScene";
+import type { MatchOutcome, PlayableHouseScene } from "./scenes/PlayableHouseScene";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 
@@ -14,11 +14,14 @@ type GameStartHandler = (payload: {
 type GameStateHandler = (state: GameSyncState) => void;
 type GameOverHandler = (payload: { outcome: string }) => void;
 type PlayerMoveHandler = (payload: { id: string; x: number; y: number }) => void;
+type PlayerInteractHandler = (payload: { id: string }) => void;
 
 export interface GameSyncState {
   players: Record<string, { x: number; y: number; alive: boolean }>;
   cashFound: number;
   collectedLoot: number[];
+  hasKey?: boolean;
+  openedInteractables?: string[];
   cat: { x: number; y: number; mood: string };
   lives: number;
   timeLeftMs: number;
@@ -67,6 +70,10 @@ class GameSocket {
     this.ioSocket.emit("player_move", { x, y });
   }
 
+  sendInteract(): void {
+    this.ioSocket.emit("player_interact");
+  }
+
   sendGameState(state: GameSyncState): void {
     this.ioSocket.emit("game_state", state);
   }
@@ -90,6 +97,7 @@ export class GameClient {
   private gameStateHandlers = new Set<GameStateHandler>();
   private gameOverHandlers = new Set<GameOverHandler>();
   private playerMoveHandlers = new Set<PlayerMoveHandler>();
+  private playerInteractHandlers = new Set<PlayerInteractHandler>();
   private sceneUnsubs: Array<() => void> = [];
 
   constructor() {
@@ -130,6 +138,10 @@ export class GameClient {
       this.playerMoveHandlers.forEach((cb) => cb(payload));
     });
 
+    this.ioSocket.on("player_interact", (payload: { id: string }) => {
+      this.playerInteractHandlers.forEach((cb) => cb(payload));
+    });
+
     this.ioSocket.on("room_error", ({ message }: { message: string }) => {
       console.warn("[GameClient]", message);
     });
@@ -145,10 +157,23 @@ export class GameClient {
       })
     );
 
+    if (callbacks.isHost) {
+      this.sceneUnsubs.push(
+        this.onPlayerInteract(({ id }) => {
+          if (id === this.localId) return;
+          const pos = scene.getPlayerPosition(id);
+          if (pos) scene.tryInteractAt(id, pos.x, pos.y);
+        })
+      );
+    }
+
     if (!callbacks.isHost) {
       this.sceneUnsubs.push(
         this.onGameState((state) => {
-          scene.applyGameState(state);
+          scene.applyGameState({
+            ...state,
+            outcome: state.outcome as MatchOutcome | undefined
+          });
           callbacks.onTimeSync?.(state.timeLeftMs);
         })
       );
@@ -196,6 +221,11 @@ export class GameClient {
   onPlayerMove(cb: PlayerMoveHandler): () => void {
     this.playerMoveHandlers.add(cb);
     return () => this.playerMoveHandlers.delete(cb);
+  }
+
+  onPlayerInteract(cb: PlayerInteractHandler): () => void {
+    this.playerInteractHandlers.add(cb);
+    return () => this.playerInteractHandlers.delete(cb);
   }
 
   mountGame(_containerId: string): void {}

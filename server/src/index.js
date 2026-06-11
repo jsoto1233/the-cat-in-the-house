@@ -163,6 +163,12 @@ io.on("connection", (socket) => {
     io.in(room.code).emit("player_move", { id: socket.id, x, y });
   });
 
+  socket.on("player_interact", () => {
+    const room = getRoom(socket);
+    if (!room?.inGame) return;
+    io.in(room.code).emit("player_interact", { id: socket.id });
+  });
+
   socket.on("game_state", (state) => {
     const room = getRoom(socket);
     if (!room?.inGame || socket.id !== room.hostId) return;

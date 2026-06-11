@@ -646,8 +646,13 @@ input {
 }
 
 .hud__loot,
+.hud__key,
 .hud__lives {
   text-align: center;
+}
+
+.hud__key.has-key .hud__stat-value {
+  color: #ffd633;
 }
 
 .hud__loot .hud__stat-value,

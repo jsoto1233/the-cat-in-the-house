@@ -6,6 +6,7 @@ interface HUDProps {
   timeLeftMs: number;
   cashFound: number;
   cashTotal: number;
+  hasKey: boolean;
   lives: number;
   livesTotal: number;
   onPause: () => void;
@@ -28,6 +29,7 @@ export function HUD({
   timeLeftMs,
   cashFound,
   cashTotal,
+  hasKey,
   lives,
   livesTotal,
   onPause
@@ -69,6 +71,15 @@ export function HUD({
             </span>
             <strong>{cashFound}</strong>
             <span className="dim">/ {cashTotal}</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="hud__slot">
+        <div className={`hud__cell hud__card hud__key ${hasKey ? "has-key" : ""}`}>
+          <span className="hud__label">Key</span>
+          <span className="hud__stat-value" aria-label={hasKey ? "Chest key found" : "No key yet"}>
+            {hasKey ? "\u{1F511}" : "\u2014"}
           </span>
         </div>
       </div>

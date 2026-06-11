@@ -1,125 +1,39 @@
 import Phaser from "phaser";
-import { CollisionMap } from "../CollisionMap";
 import { CatAI } from "../CatAI";
+import {
+  CASH_TOTAL,
+  CAT_SPAWN,
+  CATCH_RADIUS,
+  createHouseCollisionMap,
+  ESCAPE_RADIUS,
+  INTERACT_RADIUS,
+  INVULN_SECONDS,
+  LIVES_TOTAL,
+  PALETTE,
+  PICKUP_RADIUS,
+  PLAYER_COLORS,
+  PLAYER_SPAWN,
+  PLAYER_SPAWNS,
+  PLAYER_SPEED,
+  type MatchOutcome,
+  type PreviewDifficulty,
+  type PreviewMood,
+  type PreviewState
+} from "../house/houseLayout";
+import {
+  applyOpenedVisual,
+  buildCat,
+  buildInteractUi,
+  buildPlayer,
+  drawHouseWorld,
+  showInteractFeedback,
+  spawnInteractables,
+  spawnMoney,
+  type InteractableMarker,
+  type MoneyMarker
+} from "../house/houseSprites";
 
-// Playable house scene (scene key "HousePreview" — kept identical so Jose's
-// GameView pause/resume + preview:update contract is unchanged). Drives real
-// movement, loot pickups, cat AI, lives and escape on the canonical
-// HousePreviewScene layout. Emits:
-//   - "preview:update" (PreviewState) on loot/lives/mood/attic changes
-//   - "match:over" ({ outcome }) when the player escapes or is caught
-
-export type PreviewMood = "calm" | "warning" | "aggressive";
-export type PreviewDifficulty = "normal" | "ludicrous";
-
-export interface PreviewState {
-  cashFound: number;
-  cashTotal: number;
-  mood: PreviewMood;
-  atticUnlocked: boolean;
-  lives: number;
-  livesTotal: number;
-  difficulty: PreviewDifficulty;
-}
-
-export type MatchOutcome = "escaped" | "caught";
-
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-interface Room extends Rect {
-  key: string;
-  name: string;
-  isAttic?: boolean;
-}
-
-const PALETTE = {
-  wallLine: 0x32324a,
-  floor: 0x121219,
-  floorAlt: 0x16161f,
-  hallway: 0x191922,
-  label: "#6c6776",
-  player: 0x4aa3df,
-  playerDark: 0x2c6f9e,
-  cat: 0x17171d,
-  catEar: 0x101015,
-  outline: 0x000000,
-  moneyGlow: 0xffe23a,
-  moneyGold: 0xffd633,
-  moneyHighlight: 0xfff4a8,
-  attic: 0xc41e3a,
-  doorWood: 0x3a2b22,
-  doorWoodDark: 0x241a14,
-  doorHandle: 0x141010
-};
-
-const WORLD = { x: 30, y: 30, w: 740, h: 540 };
-const CASH_TOTAL = 4;
-const LIVES_TOTAL = 3;
-
-const PLAYER_SPAWN = { x: 400, y: 300 };
-const PLAYER_SPAWNS = [
-  { x: 380, y: 300 },
-  { x: 420, y: 300 },
-  { x: 380, y: 320 },
-  { x: 420, y: 320 }
-];
-const PLAYER_COLORS = [0x4aa3df, 0x4adf7a, 0xdf4a9f, 0xdfae4a];
-const CAT_SPAWN = { x: 440, y: 150 };
-
-const PLAYER_SPEED = 165; // px/s
-const PICKUP_RADIUS = 26;
-const CATCH_RADIUS = 24;
-const INVULN_SECONDS = 1.6;
-const ESCAPE_RADIUS = 34;
-
-const ROOMS: Room[] = [
-  { key: "living", name: "Living Room", x: 30, y: 30, w: 330, h: 230 },
-  { key: "kitchen", name: "Kitchen", x: 380, y: 30, w: 390, h: 230 },
-  { key: "hallway", name: "Hallway", x: 30, y: 270, w: 740, h: 60 },
-  { key: "bedroom", name: "Bedroom", x: 30, y: 340, w: 290, h: 230 },
-  { key: "bathroom", name: "Bathroom", x: 340, y: 340, w: 200, h: 230 },
-  { key: "attic", name: "Back door", x: 560, y: 340, w: 210, h: 230, isAttic: true }
-];
-
-const MONEY_SPOTS = [
-  { x: 195, y: 159 }, // living
-  { x: 575, y: 159 }, // kitchen
-  { x: 175, y: 469 }, // bedroom
-  { x: 440, y: 469 } // bathroom
-];
-
-// Walkable rectangles: room interiors (slightly inset off the wall stroke) plus
-// generous door "bridge" rects that overlap the hallway so rooms connect.
-const ROOM_INSET = 4;
-const WALKABLE_RECTS: Rect[] = [
-  ...ROOMS.map((r) => ({
-    x: r.x + ROOM_INSET,
-    y: r.y + ROOM_INSET,
-    w: r.w - ROOM_INSET * 2,
-    h: r.h - ROOM_INSET * 2
-  })),
-  // Top rooms <-> hallway (around the upper doorway gaps)
-  { x: 168, y: 248, w: 44, h: 42 },
-  { x: 518, y: 248, w: 44, h: 42 },
-  // Bottom rooms <-> hallway (around the lower doorway gaps)
-  { x: 148, y: 308, w: 44, h: 42 },
-  { x: 408, y: 308, w: 44, h: 42 },
-  { x: 628, y: 308, w: 44, h: 42 }
-];
-
-const TILE = 20;
-
-interface MoneyMarker {
-  x: number;
-  y: number;
-  container: Phaser.GameObjects.Container;
-  collected: boolean;
-}
+export type { MatchOutcome, PreviewDifficulty, PreviewMood, PreviewState } from "../house/houseLayout";
 
 export class PlayableHouseScene extends Phaser.Scene {
   private difficulty: PreviewDifficulty = "normal";
@@ -131,10 +45,11 @@ export class PlayableHouseScene extends Phaser.Scene {
   private remotePositions = new Map<string, { x: number; y: number; alive: boolean }>();
   private syncTimer = 0;
   private onMove?: (x: number, y: number) => void;
+  private onInteract?: () => void;
   private onHostSync?: (state: Record<string, unknown>) => void;
   private getTimeLeftMs?: () => number;
 
-  private collisionMap!: CollisionMap;
+  private collisionMap = createHouseCollisionMap();
   private cat!: CatAI;
 
   private playerContainer!: Phaser.GameObjects.Container;
@@ -144,10 +59,13 @@ export class PlayableHouseScene extends Phaser.Scene {
   private playerY = PLAYER_SPAWN.y;
 
   private money: MoneyMarker[] = [];
+  private interactables: InteractableMarker[] = [];
+  private interactPrompt!: Phaser.GameObjects.Text;
+  private feedbackText!: Phaser.GameObjects.Text;
   private backDoor = { x: 0, y: 0 };
-  private escapeMarker!: Phaser.GameObjects.Rectangle;
 
   private cashFound = 0;
+  private hasKey = false;
   private lives = LIVES_TOTAL;
   private invulnRemaining = 0;
   private matchEnded = false;
@@ -163,6 +81,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     a: Phaser.Input.Keyboard.Key;
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
+    e: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -177,6 +96,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.isHost = this.registry.get("isHost") ?? true;
     this.playerIds = this.registry.get("playerIds") ?? [this.localId];
     this.onMove = this.registry.get("onMove");
+    this.onInteract = this.registry.get("onInteract");
     this.onHostSync = this.registry.get("onHostSync");
     this.getTimeLeftMs = this.registry.get("getTimeLeftMs");
 
@@ -187,10 +107,15 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#08080c");
 
-    this.drawWorld();
-    this.buildCollisionMap();
-    this.spawnMoney();
-    this.buildEntities();
+    const world = drawHouseWorld(this);
+    this.backDoor = world.backDoor;
+    this.collisionMap = createHouseCollisionMap();
+    this.money = spawnMoney(this);
+    this.interactables = spawnInteractables(this);
+    this.playerContainer = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.catContainer = buildCat(this, CAT_SPAWN.x, CAT_SPAWN.y);
+    ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
+
     if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
     this.setupCat();
@@ -219,6 +144,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (this.multiplayer && !this.isHost) {
       this.invulnRemaining = Math.max(0, this.invulnRemaining - dt);
       this.movePlayer(dt);
+      this.checkInteractInputRemote();
+      this.updateInteractPrompt();
       this.syncRemoteSprites();
       this.updateInvulnVisual();
       return;
@@ -236,6 +163,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.catContainer.setPosition(this.cat.x, this.cat.y);
 
     this.checkPickups();
+    this.checkInteractInput();
+    this.updateInteractPrompt();
     this.checkCatch();
     this.checkEscape();
 
@@ -252,70 +181,61 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
   }
 
-  // ---------- world / layout ----------
-
-  private drawWorld() {
-    this.drawRect(WORLD.x, WORLD.y, WORLD.w, WORLD.h, PALETTE.floor, PALETTE.wallLine, 2);
-
-    ROOMS.forEach((room, i) => {
-      const floor =
-        room.key === "hallway" ? PALETTE.hallway : i % 2 ? PALETTE.floorAlt : PALETTE.floor;
-      this.drawRect(room.x, room.y, room.w, room.h, floor, PALETTE.wallLine, 2);
-      this.add
-        .text(room.x + 10, room.y + 8, room.name, {
-          fontFamily: "Inter, sans-serif",
-          fontSize: "12px",
-          color: PALETTE.label
-        })
-        .setDepth(2);
-    });
-
-    this.drawDoor(190, 260, 46, 14);
-    this.drawDoor(540, 260, 46, 14);
-    this.drawDoor(170, 330, 46, 14);
-    this.drawDoor(430, 330, 46, 14);
-    this.drawDoor(650, 330, 46, 14);
-
-    const attic = ROOMS.find((r) => r.isAttic)!;
-    this.add
-      .text(attic.x + attic.w / 2, attic.y + attic.h / 2, "Back door", {
-        fontFamily: "Inter, sans-serif",
-        fontSize: "13px",
-        color: "#8a8690",
-        align: "center"
-      })
-      .setOrigin(0.5)
-      .setDepth(2);
-    this.drawBackDoor(attic);
+  setRemotePosition(id: string, x: number, y: number) {
+    if (id === this.localId) return;
+    this.remotePositions.set(id, { x, y, alive: true });
+    this.ensureRemotePlayer(id).setPosition(x, y);
   }
 
-  private buildCollisionMap() {
-    const cols = Math.ceil(800 / TILE);
-    const rows = Math.ceil(600 / TILE);
-    const grid: boolean[][] = [];
-    for (let row = 0; row < rows; row++) {
-      grid[row] = [];
-      for (let col = 0; col < cols; col++) {
-        const cx = col * TILE + TILE / 2;
-        const cy = row * TILE + TILE / 2;
-        grid[row][col] = this.isWalkablePoint(cx, cy);
+  getPlayerPosition(id: string): { x: number; y: number } | null {
+    if (id === this.localId) return { x: this.playerX, y: this.playerY };
+    const pos = this.remotePositions.get(id);
+    return pos ? { x: pos.x, y: pos.y } : null;
+  }
+
+  applyGameState(state: {
+    players: Record<string, { x: number; y: number; alive: boolean }>;
+    cashFound: number;
+    collectedLoot: number[];
+    hasKey?: boolean;
+    openedInteractables?: string[];
+    cat: { x: number; y: number; mood: string };
+    lives: number;
+    timeLeftMs: number;
+    matchEnded?: boolean;
+    outcome?: MatchOutcome;
+  }) {
+    this.cashFound = state.cashFound;
+    this.hasKey = !!state.hasKey;
+    this.lives = state.lives;
+    state.collectedLoot.forEach((idx) => {
+      const m = this.money[idx];
+      if (m && !m.collected) {
+        m.collected = true;
+        m.container.destroy();
       }
+    });
+    (state.openedInteractables ?? []).forEach((id) => {
+      const item = this.interactables.find((i) => i.def.id === id);
+      if (item && !item.opened) applyOpenedVisual(item);
+    });
+    this.cat.x = state.cat.x;
+    this.cat.y = state.cat.y;
+    this.catContainer.setPosition(state.cat.x, state.cat.y);
+    this.lastMood = state.cat.mood as PreviewMood;
+    for (const [id, p] of Object.entries(state.players)) {
+      if (id === this.localId) continue;
+      this.remotePositions.set(id, { x: p.x, y: p.y, alive: p.alive });
+      this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
     }
-    this.collisionMap = new CollisionMap(TILE, TILE, grid);
+    this.emitPreview();
+    if (state.matchEnded && state.outcome) this.endMatch(state.outcome);
   }
 
-  private isWalkablePoint(x: number, y: number): boolean {
-    for (const r of WALKABLE_RECTS) {
-      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return true;
-    }
-    return false;
-  }
-
-  // ---------- entities ----------
-
-  private buildEntities() {
-    this.playerContainer = this.buildPlayer(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
-    this.catContainer = this.buildCat(CAT_SPAWN.x, CAT_SPAWN.y);
+  tryInteractAt(playerId: string, x: number, y: number) {
+    const target = this.getNearestInteractable(x, y);
+    if (!target) return;
+    this.openInteractable(target, playerId);
   }
 
   private setupInput() {
@@ -328,26 +248,23 @@ export class PlayableHouseScene extends Phaser.Scene {
       w: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
       a: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       s: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+      d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      e: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     };
-    // Don't swallow arrow keys to the page; leave Escape to React (pause).
     kb.addCapture([
       Phaser.Input.Keyboard.KeyCodes.UP,
       Phaser.Input.Keyboard.KeyCodes.DOWN,
       Phaser.Input.Keyboard.KeyCodes.LEFT,
-      Phaser.Input.Keyboard.KeyCodes.RIGHT
+      Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      Phaser.Input.Keyboard.KeyCodes.E
     ]);
   }
 
   private setupCat() {
     this.cat = new CatAI(CAT_SPAWN, 800, 600, this.collisionMap);
     this.cat.reset();
-    // Difficulty drives hunt cadence (both modes hunt immediately; ludicrous re-plans faster) and the
-    // behavior re-evaluation cadence inside CatAI.
     this.cat.setDifficulty(this.difficulty);
   }
-
-  // ---------- per-frame systems ----------
 
   private movePlayer(dt: number) {
     let dx = 0;
@@ -379,49 +296,11 @@ export class PlayableHouseScene extends Phaser.Scene {
     return states;
   }
 
-  setRemotePosition(id: string, x: number, y: number) {
-    if (id === this.localId) return;
-    this.remotePositions.set(id, { x, y, alive: true });
-    this.ensureRemotePlayer(id).setPosition(x, y);
-  }
-
   private syncRemoteSprites() {
     for (const [id, container] of this.remotePlayers) {
       const pos = this.remotePositions.get(id);
       if (pos) container.setPosition(pos.x, pos.y);
     }
-  }
-
-  applyGameState(state: {
-    players: Record<string, { x: number; y: number; alive: boolean }>;
-    cashFound: number;
-    collectedLoot: number[];
-    cat: { x: number; y: number; mood: string };
-    lives: number;
-    timeLeftMs: number;
-    matchEnded?: boolean;
-    outcome?: MatchOutcome;
-  }) {
-    this.cashFound = state.cashFound;
-    this.lives = state.lives;
-    state.collectedLoot.forEach((idx) => {
-      const m = this.money[idx];
-      if (m && !m.collected) {
-        m.collected = true;
-        m.container.destroy();
-      }
-    });
-    this.cat.x = state.cat.x;
-    this.cat.y = state.cat.y;
-    this.catContainer.setPosition(state.cat.x, state.cat.y);
-    this.lastMood = state.cat.mood as PreviewMood;
-    for (const [id, p] of Object.entries(state.players)) {
-      if (id === this.localId) continue;
-      this.remotePositions.set(id, { x: p.x, y: p.y, alive: p.alive });
-      this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
-    }
-    this.emitPreview();
-    if (state.matchEnded && state.outcome) this.endMatch(state.outcome);
   }
 
   private buildSyncState() {
@@ -434,6 +313,8 @@ export class PlayableHouseScene extends Phaser.Scene {
       players,
       cashFound: this.cashFound,
       collectedLoot: this.money.map((m, i) => (m.collected ? i : -1)).filter((i) => i >= 0),
+      hasKey: this.hasKey,
+      openedInteractables: this.interactables.filter((i) => i.opened).map((i) => i.def.id),
       cat: { x: this.cat.x, y: this.cat.y, mood: this.cat.mood },
       lives: this.lives,
       timeLeftMs: this.getTimeLeftMs?.() ?? 60000,
@@ -445,7 +326,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerIds.forEach((id, i) => {
       if (id === this.localId) return;
       const spawn = PLAYER_SPAWNS[i] ?? PLAYER_SPAWN;
-      this.remotePlayers.set(id, this.buildPlayer(spawn.x, spawn.y, PLAYER_COLORS[i] ?? PALETTE.player));
+      this.remotePlayers.set(id, buildPlayer(this, spawn.x, spawn.y, PLAYER_COLORS[i] ?? PALETTE.player));
       this.remotePositions.set(id, { x: spawn.x, y: spawn.y, alive: true });
     });
   }
@@ -453,9 +334,85 @@ export class PlayableHouseScene extends Phaser.Scene {
   private ensureRemotePlayer(id: string) {
     if (this.remotePlayers.has(id)) return this.remotePlayers.get(id)!;
     const idx = this.playerIds.indexOf(id);
-    const container = this.buildPlayer(PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_COLORS[idx] ?? PALETTE.player);
+    const container = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_COLORS[idx] ?? PALETTE.player);
     this.remotePlayers.set(id, container);
     return container;
+  }
+
+  private checkInteractInput() {
+    if (!Phaser.Input.Keyboard.JustDown(this.keys.e)) return;
+    this.tryInteractAt(this.localId, this.playerX, this.playerY);
+  }
+
+  private checkInteractInputRemote() {
+    if (!Phaser.Input.Keyboard.JustDown(this.keys.e)) return;
+    this.onInteract?.();
+  }
+
+  private getNearestInteractable(x: number, y: number): InteractableMarker | null {
+    let best: InteractableMarker | null = null;
+    let bestDist = INTERACT_RADIUS;
+    for (const item of this.interactables) {
+      const dx = x - item.def.x;
+      const dy = y - item.def.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= bestDist) {
+        bestDist = dist;
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  private openInteractable(item: InteractableMarker, playerId: string) {
+    const { def } = item;
+    if (item.opened) {
+      showInteractFeedback(this, this.feedbackText, "Already searched");
+      return;
+    }
+    if (def.locked && def.keyId && !this.hasKey) {
+      showInteractFeedback(this, this.feedbackText, "Locked — find the key first");
+      return;
+    }
+
+    applyOpenedVisual(item);
+
+    if (def.contains === "key") {
+      this.hasKey = true;
+      showInteractFeedback(this, this.feedbackText, "Found a key!");
+      this.cat.onClueCollected(playerId, `key_${def.id}`);
+    } else if (def.contains === "cash") {
+      this.grantCash(1, playerId, def.id);
+      showInteractFeedback(this, this.feedbackText, "Found $1!");
+    } else if (def.contains === "cash_x2") {
+      this.grantCash(2, playerId, def.id);
+      showInteractFeedback(this, this.feedbackText, "Chest opened — $2!");
+    } else {
+      showInteractFeedback(this, this.feedbackText, "Nothing inside");
+    }
+
+    this.emitPreview();
+  }
+
+  private grantCash(amount: number, playerId: string, sourceId: string) {
+    const added = Math.min(amount, CASH_TOTAL - this.cashFound);
+    if (added <= 0) return;
+    this.cashFound += added;
+    this.cat.onClueCollected(playerId, `loot_${sourceId}`);
+  }
+
+  private updateInteractPrompt() {
+    const target = this.getNearestInteractable(this.playerX, this.playerY);
+    if (!target || target.opened) {
+      this.interactPrompt.setVisible(false);
+      return;
+    }
+    const label =
+      target.def.locked && !this.hasKey
+        ? `Press E — ${target.def.label} (locked)`
+        : `Press E — Search ${target.def.label.toLowerCase()}`;
+    this.interactPrompt.setText(label);
+    this.interactPrompt.setVisible(true);
   }
 
   private checkPickups() {
@@ -548,8 +505,6 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.game.events.emit("match:over", { outcome });
   }
 
-  // ---------- preview emit ----------
-
   private emitPreview(_initial = false) {
     if (!this.multiplayer || this.isHost) {
       this.lastMood = this.cat ? this.cat.mood : "calm";
@@ -560,134 +515,11 @@ export class PlayableHouseScene extends Phaser.Scene {
       cashTotal: CASH_TOTAL,
       mood: this.lastMood,
       atticUnlocked: this.lastAtticUnlocked,
+      hasKey: this.hasKey,
       lives: this.lives,
       livesTotal: LIVES_TOTAL,
       difficulty: this.difficulty
     };
     this.game.events.emit("preview:update", state);
-  }
-
-  private distTo(x: number, y: number): number {
-    const dx = x - this.playerX;
-    const dy = y - this.playerY;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  // ---------- drawing helpers (ported from HousePreviewScene) ----------
-
-  private drawRect(
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    fill: number,
-    line: number,
-    lineWidth: number
-  ) {
-    this.add
-      .rectangle(x + w / 2, y + h / 2, w, h, fill)
-      .setStrokeStyle(lineWidth, line)
-      .setDepth(0);
-  }
-
-  private drawDoor(x: number, y: number, w: number, h: number) {
-    this.add.rectangle(x, y, w, h, PALETTE.hallway).setDepth(1);
-  }
-
-  private drawBackDoor(room: Rect) {
-    const doorW = 20;
-    const doorH = 72;
-    const wallInset = 5;
-    const cx = room.x + room.w - wallInset - doorW / 2;
-    const cy = room.y + room.h / 2 + 28;
-    this.backDoor = { x: cx, y: cy };
-
-    const escapePad = 3;
-    const escapeW = doorW + 6 + escapePad * 2;
-    const escapeH = doorH + 6 + escapePad * 2;
-    this.escapeMarker = this.add
-      .rectangle(0, 0, escapeW, escapeH)
-      .setStrokeStyle(2, PALETTE.attic, 0.9)
-      .setFillStyle(PALETTE.attic, 0.04);
-
-    const frame = this.add
-      .rectangle(0, 0, doorW + 6, doorH + 6, PALETTE.doorWoodDark)
-      .setStrokeStyle(2, PALETTE.outline);
-    const panel = this.add
-      .rectangle(0, 0, doorW, doorH, PALETTE.doorWood)
-      .setStrokeStyle(2, PALETTE.outline);
-    const inset = this.add.rectangle(0, 0, doorW - 6, doorH - 10, PALETTE.doorWoodDark, 0.55);
-    const handle = this.add
-      .rectangle(-doorW / 2 + 5, 2, 2, 10, PALETTE.doorHandle)
-      .setStrokeStyle(1, PALETTE.outline);
-
-    this.add.container(cx, cy, [this.escapeMarker, frame, panel, inset, handle]).setDepth(1);
-  }
-
-  private spawnMoney() {
-    MONEY_SPOTS.forEach((spot) => {
-      const container = this.spawnMoneyMarker(spot.x, spot.y);
-      this.money.push({ x: spot.x, y: spot.y, container, collected: false });
-    });
-  }
-
-  private spawnMoneyMarker(x: number, y: number): Phaser.GameObjects.Container {
-    const whiteRing = this.add.circle(0, 0, 18, 0xffffff, 0.35);
-    const halo = this.add.circle(0, 0, 16, PALETTE.moneyGlow, 0.28);
-    const borderRing = this.add.circle(0, 0, 14, PALETTE.outline);
-    const coin = this.add
-      .circle(0, 0, 12, PALETTE.moneyGold, 1)
-      .setStrokeStyle(3, PALETTE.outline, 1);
-    const shine = this.add.circle(-3, -3, 5, PALETTE.moneyHighlight, 0.55);
-    const sign = this.add
-      .text(0, 1, "$", {
-        fontFamily: "Inter, system-ui, sans-serif",
-        fontSize: "20px",
-        color: "#0a0a0f",
-        fontStyle: "bold"
-      })
-      .setOrigin(0.5);
-    const container = this.add
-      .container(x, y, [whiteRing, halo, borderRing, coin, shine, sign])
-      .setDepth(6);
-    this.tweens.add({
-      targets: halo,
-      scale: { from: 0.85, to: 1.45 },
-      alpha: { from: 0.4, to: 0.08 },
-      duration: 1200,
-      yoyo: true,
-      repeat: -1
-    });
-    this.tweens.add({
-      targets: whiteRing,
-      scale: { from: 0.9, to: 1.2 },
-      alpha: { from: 0.45, to: 0.12 },
-      duration: 1400,
-      yoyo: true,
-      repeat: -1
-    });
-    return container;
-  }
-
-  private buildPlayer(x: number, y: number, color = PALETTE.player): Phaser.GameObjects.Container {
-    const shadow = this.add.ellipse(0, 12, 26, 10, 0x000000, 0.4);
-    const body = this.add.circle(0, 0, 12, color);
-    const ring = this.add.circle(0, 0, 12).setStrokeStyle(2, PALETTE.playerDark);
-    const eyeL = this.add.circle(-4, -3, 1.8, 0x0a0a0f);
-    const eyeR = this.add.circle(4, -3, 1.8, 0x0a0a0f);
-    const dir = this.add.triangle(0, 14, 0, 0, 5, 8, -5, 8, color);
-    dir.setRotation(-Math.PI / 2);
-    return this.add.container(x, y, [shadow, dir, body, ring, eyeL, eyeR]).setDepth(5);
-  }
-
-  private buildCat(x: number, y: number): Phaser.GameObjects.Container {
-    const shadow = this.add.ellipse(0, 14, 34, 12, 0x000000, 0.45);
-    const earL = this.add.triangle(-9, -12, 0, 0, 10, 0, 5, -12, PALETTE.catEar);
-    const earR = this.add.triangle(9, -12, 0, 0, 10, 0, 5, -12, PALETTE.catEar);
-    const body = this.add.ellipse(0, 0, 34, 28, PALETTE.cat);
-    const eyeL = this.add.circle(-6, -2, 2.4, 0xffe23a);
-    const eyeR = this.add.circle(6, -2, 2.4, 0xffe23a);
-    const tail = this.add.ellipse(20, 6, 18, 6, PALETTE.cat);
-    return this.add.container(x, y, [shadow, tail, earL, earR, body, eyeL, eyeR]).setDepth(4);
   }
 }

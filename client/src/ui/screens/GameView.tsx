@@ -54,9 +54,10 @@ export function GameView() {
   const [gameOver, setGameOver] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({
     cashFound: 0,
-    cashTotal: 4,
+    cashTotal: 10,
     mood: "calm",
     atticUnlocked: false,
+    hasKey: false,
     lives: 3,
     livesTotal: 3,
     difficulty
@@ -131,6 +132,7 @@ export function GameView() {
             "onMove",
             mp ? (x: number, y: number) => client.socket.sendMove(x, y) : undefined
           );
+          g.registry.set("onInteract", mp ? () => client.socket.sendInteract() : undefined);
           g.registry.set("onHostSync", (state: GameSyncState) => client.socket.sendGameState(state));
           g.registry.set("onMatchOver", (outcome: string) => client.socket.sendGameOver(outcome));
           g.registry.set("attachNetwork", (scene: PlayableHouseScene) => {
@@ -187,8 +189,8 @@ export function GameView() {
   }, [gameplayPaused]);
 
   const objective = isMultiplayer
-    ? "Co-op heist: collect all $ valuables and reach the back door together."
-    : "Solo heist: search the house, collect $ valuables, and escape.";
+    ? "Co-op heist: collect all $ valuables, search cabinets for a chest key, and escape together."
+    : "Solo heist: collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, and escape.";
 
   return (
     <div className="game">
@@ -201,6 +203,7 @@ export function GameView() {
           timeLeftMs={timeLeftMs}
           cashFound={preview.cashFound}
           cashTotal={preview.cashTotal}
+          hasKey={preview.hasKey}
           lives={preview.lives}
           livesTotal={preview.livesTotal}
           onPause={() => setPaused(true)}
