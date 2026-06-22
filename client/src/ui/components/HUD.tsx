@@ -9,6 +9,8 @@ interface HUDProps {
   hasKey: boolean;
   lives: number;
   livesTotal: number;
+  floor: number;
+  floorTotal: number;
   onPause: () => void;
 }
 
@@ -32,9 +34,12 @@ export function HUD({
   hasKey,
   lives,
   livesTotal,
+  floor,
+  floorTotal,
   onPause
 }: HUDProps) {
   const low = timeLeftMs <= 30_000;
+  const topFloor = floor >= floorTotal;
 
   return (
     <header className="hud" aria-label="Game status">
@@ -59,6 +64,17 @@ export function HUD({
               <p>{objective}</p>
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="hud__slot">
+        <div className={`hud__cell hud__card hud__floor ${topFloor ? "is-top" : ""}`}>
+          <span className="hud__label">Floor</span>
+          <span className="hud__stat-value" aria-label={`Floor ${floor} of ${floorTotal}`}>
+            <strong>{floor}</strong>
+            <span className="dim">/ {floorTotal}</span>
+            {topFloor && <span className="hud__floor-flag" aria-hidden="true"> ⌂</span>}
+          </span>
         </div>
       </div>
 

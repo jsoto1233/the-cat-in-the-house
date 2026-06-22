@@ -21,6 +21,11 @@ import {
   type PreviewState
 } from "../house/houseLayout";
 import {
+  createFloorCollisionMap,
+  getFloorLayout,
+  type FloorLayout
+} from "../house/floors";
+import {
   applyOpenedVisual,
   buildCat,
   buildInteractUi,
@@ -50,6 +55,8 @@ export class PlayableHouseScene extends Phaser.Scene {
   private getTimeLeftMs?: () => number;
 
   private collisionMap = createHouseCollisionMap();
+  private layout: FloorLayout = getFloorLayout(1);
+  private catSpawnPos = CAT_SPAWN;
   private cat!: CatAI;
 
   private playerContainer!: Phaser.GameObjects.Container;
@@ -100,6 +107,12 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.onHostSync = this.registry.get("onHostSync");
     this.getTimeLeftMs = this.registry.get("getTimeLeftMs");
 
+    // Which floor (level) to build. GameView puts this in the registry and
+    // remounts the whole game for each floor, so reading it here is enough.
+    const floor = Number(this.registry.get("floor")) || 1;
+    this.layout = getFloorLayout(floor);
+    this.catSpawnPos = this.layout.catSpawn;
+
     const spawnIdx = Math.max(0, this.playerIds.indexOf(this.localId));
     const spawn = this.multiplayer ? PLAYER_SPAWNS[spawnIdx] ?? PLAYER_SPAWN : PLAYER_SPAWN;
     this.playerX = spawn.x;
@@ -107,13 +120,13 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#08080c");
 
-    const world = drawHouseWorld(this);
+    const world = drawHouseWorld(this, this.layout);
     this.backDoor = world.backDoor;
-    this.collisionMap = createHouseCollisionMap();
-    this.money = spawnMoney(this);
-    this.interactables = spawnInteractables(this);
+    this.collisionMap = createFloorCollisionMap(this.layout);
+    this.money = spawnMoney(this, this.layout);
+    this.interactables = spawnInteractables(this, this.layout);
     this.playerContainer = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y);
-    this.catContainer = buildCat(this, CAT_SPAWN.x, CAT_SPAWN.y);
+    this.catContainer = buildCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
     ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
 
     if (this.multiplayer) this.spawnRemotePlayers();
@@ -261,7 +274,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private setupCat() {
-    this.cat = new CatAI(CAT_SPAWN, 800, 600, this.collisionMap);
+    this.cat = new CatAI(this.catSpawnPos, 800, 600, this.collisionMap);
     this.cat.reset();
     this.cat.setDifficulty(this.difficulty);
   }
@@ -371,7 +384,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       return;
     }
     if (def.locked && def.keyId && !this.hasKey) {
-      showInteractFeedback(this, this.feedbackText, "Locked — find the key first");
+      showInteractFeedback(this, this.feedbackText, "Locked. Find the key first");
       return;
     }
 
@@ -386,7 +399,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       showInteractFeedback(this, this.feedbackText, "Found $1!");
     } else if (def.contains === "cash_x2") {
       this.grantCash(2, playerId, def.id);
-      showInteractFeedback(this, this.feedbackText, "Chest opened — $2!");
+      showInteractFeedback(this, this.feedbackText, "Chest opened! $2!");
     } else {
       showInteractFeedback(this, this.feedbackText, "Nothing inside");
     }
@@ -409,8 +422,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
     const label =
       target.def.locked && !this.hasKey
-        ? `Press E — ${target.def.label} (locked)`
-        : `Press E — Search ${target.def.label.toLowerCase()}`;
+        ? `Press E to open ${target.def.label} (locked)`
+        : `Press E to search ${target.def.label.toLowerCase()}`;
     this.interactPrompt.setText(label);
     this.interactPrompt.setVisible(true);
   }
@@ -460,8 +473,8 @@ export class PlayableHouseScene extends Phaser.Scene {
         this.remotePositions.set(p.id, { x: spawn.x, y: spawn.y, alive: true });
         this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
       }
-      this.cat.x = CAT_SPAWN.x;
-      this.cat.y = CAT_SPAWN.y;
+      this.cat.x = this.catSpawnPos.x;
+      this.cat.y = this.catSpawnPos.y;
       this.catContainer.setPosition(this.cat.x, this.cat.y);
       this.cat.calm(25);
       return;

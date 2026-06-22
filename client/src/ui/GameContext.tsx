@@ -31,6 +31,11 @@ export interface Settings {
 
 const SETTINGS_KEY = "cith.settings";
 
+// Number of floors (levels) the player climbs before escaping out the top-floor
+// window. Floor 1 is the ground floor. This is UI-side progression only. Each
+// floor is a fresh run of the house. Change this one number to add/remove floors.
+export const FLOOR_TOTAL = 4;
+
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -73,6 +78,9 @@ interface GameContextValue {
   hostId: string;
   gamePlayerIds: string[];
   gameSessionKey: number;
+  floor: number;
+  floorTotal: number;
+  advanceFloor: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -96,6 +104,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [hostId, setHostId] = useState("");
   const [gamePlayerIds, setGamePlayerIds] = useState<string[]>([]);
   const [gameSessionKey, setGameSessionKey] = useState(0);
+  const [floor, setFloor] = useState(1);
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -112,6 +121,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setDifficulty(mode);
       setOutcome(null);
       setMatchTimeLeftMs(null);
+      setFloor(1);
       setGameSessionKey((k) => k + 1);
       setScreen("game");
     });
@@ -194,8 +204,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGamePlayerIds([]);
     setOutcome(null);
     setMatchTimeLeftMs(null);
+    setFloor(1);
     setGameSessionKey((k) => k + 1);
     setScreen("game");
+  }, []);
+
+  // Clear the current floor and start the next one up. Each floor is a fresh
+  // run of the house (new gameSessionKey remounts GameView), with the timer
+  // reset to full. Stops at the top floor; the caller handles the actual win.
+  const advanceFloor = useCallback(() => {
+    setFloor((f) => Math.min(FLOOR_TOTAL, f + 1));
+    setOutcome(null);
+    setMatchTimeLeftMs(null);
+    setGameSessionKey((k) => k + 1);
   }, []);
 
   const leaveToMenu = useCallback(() => {
@@ -207,6 +228,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGamePlayerIds([]);
     setOutcome(null);
     setMatchTimeLeftMs(null);
+    setFloor(1);
     setScreen("menu");
   }, [client]);
 
@@ -238,7 +260,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setReady,
       setDifficulty: setDifficultyMode,
       gamePlayerIds,
-      gameSessionKey
+      gameSessionKey,
+      floor,
+      floorTotal: FLOOR_TOTAL,
+      advanceFloor
     }),
     [
       client,
@@ -265,7 +290,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setReady,
       setDifficultyMode,
       gamePlayerIds,
-      gameSessionKey
+      gameSessionKey,
+      floor,
+      advanceFloor
     ]
   );
 

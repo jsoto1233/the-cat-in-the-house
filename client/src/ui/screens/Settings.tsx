@@ -14,7 +14,7 @@ export function Settings() {
         <div className="panel">
           <div className="field">
             <label className="field__label" htmlFor="sfx">
-              Sound effects — {settings.sfx}%
+              Sound effects: {settings.sfx}%
             </label>
             <input
               id="sfx"
@@ -29,7 +29,7 @@ export function Settings() {
 
           <div className="field">
             <label className="field__label" htmlFor="music">
-              Music — {settings.music}%
+              Music: {settings.music}%
             </label>
             <input
               id="music"

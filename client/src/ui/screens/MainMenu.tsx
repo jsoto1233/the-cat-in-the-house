@@ -145,7 +145,7 @@ export function MainMenu() {
                   connected ? "status-dot--online" : "status-dot--offline"
                 }`}
               />
-              {connected ? "Connected to server" : "Offline — demo mode"}
+              {connected ? "Connected to server" : "Offline (demo mode)"}
             </span>
           </div>
         </div>

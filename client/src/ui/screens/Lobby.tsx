@@ -49,7 +49,7 @@ export function Lobby() {
         <div className="brand">
           <h1 className="brand__title">Heist lobby</h1>
           <p className="brand__subtitle">
-            {connected ? "Crew assembling — share the room code" : "Practice crew — ready up when you are"}
+            {connected ? "Crew assembling. Share the room code" : "Practice crew. Ready up when you are"}
           </p>
         </div>
 
@@ -57,7 +57,7 @@ export function Lobby() {
           <div className="room-code">
             <div>
               <span className="hud__label">Room code</span>
-              <span className="room-code__value">{roomId || "—"}</span>
+              <span className="room-code__value">{roomId || "..."}</span>
             </div>
             <span className="dim">
               {players.length}/{MAX_PLAYERS}
@@ -70,7 +70,7 @@ export function Lobby() {
               if (!player) {
                 return (
                   <li key={i} className="slot slot--empty">
-                    Robber slot — open
+                    Robber slot (open)
                   </li>
                 );
               }

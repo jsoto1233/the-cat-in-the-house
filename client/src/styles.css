@@ -954,6 +954,87 @@ input {
   pointer-events: none;
 }
 
+/* ---------- Floors / levels ---------- */
+
+.hud__floor {
+  text-align: center;
+}
+
+.hud__floor .hud__stat-value {
+  justify-content: center;
+}
+
+.hud__floor.is-top .hud__stat-value {
+  color: #7fc0ff;
+}
+
+.hud__floor-flag {
+  margin-left: 0.1rem;
+}
+
+.floor-badge--window {
+  position: absolute;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #7fc0ff;
+  border: 1px solid #5fb0ff;
+  background: rgba(8, 8, 12, 0.8);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  pointer-events: none;
+}
+
+.floor-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  text-align: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(8, 8, 12, 0.55), rgba(8, 8, 12, 0.82));
+  animation: floor-splash-fade 1.7s ease-out forwards;
+}
+
+.floor-splash__num {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f1edf7;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+}
+
+.floor-splash__sub {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: #b9b3c6;
+}
+
+@keyframes floor-splash-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* ---------- Difficulty selector (main menu) ---------- */
 
 .difficulty {

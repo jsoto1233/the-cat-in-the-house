@@ -34,8 +34,13 @@ export function GameView() {
     hostId,
     gamePlayerIds,
     connected,
-    gameSessionKey
+    gameSessionKey,
+    floor,
+    floorTotal,
+    advanceFloor
   } = useGame();
+
+  const isTopFloor = floor >= floorTotal;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -52,6 +57,8 @@ export function GameView() {
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
   const [gameOver, setGameOver] = useState(false);
+  // Brief "Floor N" splash shown at the start of every floor after the first.
+  const [floorSplash, setFloorSplash] = useState(floor > 1);
   const [preview, setPreview] = useState<PreviewState>({
     cashFound: 0,
     cashTotal: 10,
@@ -77,6 +84,12 @@ export function GameView() {
     const id = window.setTimeout(() => setObjectiveVisible(false), OBJECTIVE_INTRO_MS);
     return () => window.clearTimeout(id);
   }, []);
+
+  useEffect(() => {
+    if (!floorSplash) return;
+    const id = window.setTimeout(() => setFloorSplash(false), 1700);
+    return () => window.clearTimeout(id);
+  }, [floorSplash]);
 
   const normalFastPhase =
     difficulty === "normal" && timeLeftMs <= MATCH_MS_NORMAL_FAST_THRESHOLD;
@@ -123,6 +136,7 @@ export function GameView() {
       callbacks: {
         preBoot: (g) => {
           g.registry.set("difficulty", difficulty);
+          g.registry.set("floor", floor);
           g.registry.set("multiplayer", mp);
           g.registry.set("localId", client.localId || localId || "p1");
           g.registry.set("isHost", host);
@@ -156,6 +170,13 @@ export function GameView() {
 
     const onPreview = (state: PreviewState) => setPreview(state);
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
+      // Clearing a floor (single-player): if there's a floor above, climb to it
+      // instead of ending the run. The top floor's escape is the real win.
+      if (outcome === "escaped" && !mp && floor < floorTotal) {
+        setGameOver(true); // freeze this floor's scene during the remount
+        advanceFloor();
+        return;
+      }
       setGameOver(true);
       setOutcome(outcome);
       navigate("end");
@@ -188,9 +209,12 @@ export function GameView() {
     else scene.resume("HousePreview");
   }, [gameplayPaused]);
 
+  const exitLine = isTopFloor
+    ? "escape through the window on this top floor."
+    : `reach the stairs up to Floor ${floor + 1}.`;
   const objective = isMultiplayer
     ? "Co-op heist: collect all $ valuables, search cabinets for a chest key, and escape together."
-    : "Solo heist: collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, and escape.";
+    : `Solo heist (Floor ${floor} of ${floorTotal}): collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, then ${exitLine}`;
 
   return (
     <div className="game">
@@ -206,11 +230,28 @@ export function GameView() {
           hasKey={preview.hasKey}
           lives={preview.lives}
           livesTotal={preview.livesTotal}
+          floor={floor}
+          floorTotal={floorTotal}
           onPause={() => setPaused(true)}
         />
 
         <div className="game__stage">
           <div ref={containerRef} id="game-container" className="game__canvas" />
+
+          {isTopFloor && (
+            <div className="floor-badge floor-badge--window" aria-hidden="true">
+              Top floor · escape through the window
+            </div>
+          )}
+
+          {floorSplash && (
+            <div className="floor-splash" role="status">
+              <div className="floor-splash__num">Floor {floor}</div>
+              <div className="floor-splash__sub">
+                {isTopFloor ? "Find the window and get out" : "Grab the loot, then head up"}
+              </div>
+            </div>
+          )}
 
           {preview.difficulty === "ludicrous" && (
             <>

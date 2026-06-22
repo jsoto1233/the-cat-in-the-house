@@ -1,13 +1,20 @@
 import Phaser from "phaser";
 import {
-  INTERACTABLE_DEFS,
-  MONEY_SPOTS,
   PALETTE,
-  ROOMS,
   WORLD,
   type InteractableDef,
   type Rect
 } from "./houseLayout";
+import { type FloorExit, type FloorLayout } from "./floors";
+
+// Cool moonlit blue used for the top-floor escape window.
+const WINDOW_GLASS = 0x2b4a6e;
+const WINDOW_GLASS_DARK = 0x16273d;
+const WINDOW_MARKER = 0x5fb0ff;
+// Warm amber used to highlight stairs.
+const STAIRS_MARKER = 0xffb648;
+const STAIRS_TREAD = 0x4a3f2c;
+const STAIRS_TREAD_LIGHT = 0x6b5a3c;
 
 export interface MoneyMarker {
   x: number;
@@ -53,25 +60,19 @@ function drawDoor(scene: Phaser.Scene, x: number, y: number, w: number, h: numbe
   scene.add.rectangle(x, y, w, h, PALETTE.hallway).setDepth(1);
 }
 
-function drawBackDoor(
+/** A wooden escape door (floor 1). */
+function drawDoorExit(
   scene: Phaser.Scene,
-  room: Rect
-): { backDoor: { x: number; y: number }; escapeMarker: Phaser.GameObjects.Rectangle } {
+  cx: number,
+  cy: number
+): Phaser.GameObjects.Rectangle {
   const doorW = 20;
   const doorH = 72;
-  const wallInset = 5;
-  const cx = room.x + room.w - wallInset - doorW / 2;
-  const cy = room.y + room.h / 2 + 28;
-  const backDoor = { x: cx, y: cy };
-
   const escapePad = 3;
-  const escapeW = doorW + 6 + escapePad * 2;
-  const escapeH = doorH + 6 + escapePad * 2;
   const escapeMarker = scene.add
-    .rectangle(0, 0, escapeW, escapeH)
+    .rectangle(0, 0, doorW + 6 + escapePad * 2, doorH + 6 + escapePad * 2)
     .setStrokeStyle(2, PALETTE.attic, 0.9)
     .setFillStyle(PALETTE.attic, 0.04);
-
   const frame = scene.add
     .rectangle(0, 0, doorW + 6, doorH + 6, PALETTE.doorWoodDark)
     .setStrokeStyle(2, PALETTE.outline);
@@ -82,18 +83,83 @@ function drawBackDoor(
   const handle = scene.add
     .rectangle(-doorW / 2 + 5, 2, 2, 10, PALETTE.doorHandle)
     .setStrokeStyle(1, PALETTE.outline);
-
   scene.add.container(cx, cy, [escapeMarker, frame, panel, inset, handle]).setDepth(1);
-  return { backDoor, escapeMarker };
+  return escapeMarker;
 }
 
-export function drawHouseWorld(scene: Phaser.Scene): HouseWorldResult {
-  drawRect(scene, WORLD.x, WORLD.y, WORLD.w, WORLD.h, PALETTE.floor, PALETTE.wallLine, 2);
+/** A flight of stairs going up (floors 2-3). */
+function drawStairsExit(
+  scene: Phaser.Scene,
+  cx: number,
+  cy: number
+): Phaser.GameObjects.Rectangle {
+  const w = 56;
+  const h = 60;
+  const escapeMarker = scene.add
+    .rectangle(0, 0, w + 10, h + 10)
+    .setStrokeStyle(2, STAIRS_MARKER, 0.9)
+    .setFillStyle(STAIRS_MARKER, 0.05);
+  const parts: Phaser.GameObjects.GameObject[] = [escapeMarker];
+  const steps = 5;
+  for (let i = 0; i < steps; i++) {
+    const stepW = w - i * (w / (steps + 2));
+    const stepY = h / 2 - 6 - i * (h / steps);
+    parts.push(
+      scene.add
+        .rectangle(0, stepY, stepW, h / steps - 2, i % 2 ? STAIRS_TREAD_LIGHT : STAIRS_TREAD)
+        .setStrokeStyle(1, PALETTE.outline)
+    );
+  }
+  // Up arrow at the top of the flight.
+  parts.push(
+    scene.add.triangle(0, -h / 2 - 4, 0, 8, 7, -4, -7, -4, STAIRS_MARKER).setDepth(2)
+  );
+  scene.add.container(cx, cy, parts).setDepth(1);
+  return escapeMarker;
+}
 
-  ROOMS.forEach((room, i) => {
-    const floor =
-      room.key === "hallway" ? PALETTE.hallway : i % 2 ? PALETTE.floorAlt : PALETTE.floor;
-    drawRect(scene, room.x, room.y, room.w, room.h, floor, PALETTE.wallLine, 2);
+/** An open escape window on the outer wall (top floor). */
+function drawWindowExit(
+  scene: Phaser.Scene,
+  cx: number,
+  cy: number
+): Phaser.GameObjects.Rectangle {
+  const w = 54;
+  const h = 46;
+  const escapeMarker = scene.add
+    .rectangle(0, 0, w + 10, h + 10)
+    .setStrokeStyle(2, WINDOW_MARKER, 0.9)
+    .setFillStyle(WINDOW_MARKER, 0.05);
+  const frame = scene.add
+    .rectangle(0, 0, w + 6, h + 6, PALETTE.doorWoodDark)
+    .setStrokeStyle(2, PALETTE.outline);
+  const glass = scene.add.rectangle(0, 0, w, h, WINDOW_GLASS).setStrokeStyle(2, PALETTE.outline);
+  const glassDark = scene.add.rectangle(0, 0, w - 6, h - 6, WINDOW_GLASS_DARK, 0.5);
+  const barV = scene.add.rectangle(0, 0, 2, h, PALETTE.doorWoodDark);
+  const barH = scene.add.rectangle(0, 0, w, 2, PALETTE.doorWoodDark);
+  scene.add.container(cx, cy, [escapeMarker, frame, glass, glassDark, barV, barH]).setDepth(1);
+  return escapeMarker;
+}
+
+function drawExit(scene: Phaser.Scene, exit: FloorExit): Phaser.GameObjects.Rectangle {
+  if (exit.type === "stairs") return drawStairsExit(scene, exit.x, exit.y);
+  if (exit.type === "window") return drawWindowExit(scene, exit.x, exit.y);
+  return drawDoorExit(scene, exit.x, exit.y);
+}
+
+function exitCaption(type: FloorExit["type"]): string {
+  if (type === "stairs") return "Stairs up";
+  if (type === "window") return "Window";
+  return "Exit door";
+}
+
+export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseWorldResult {
+  drawRect(scene, WORLD.x, WORLD.y, WORLD.w, WORLD.h, layout.tint, PALETTE.wallLine, 2);
+
+  layout.rooms.forEach((room, i) => {
+    const fill =
+      room.key === "hallway" ? PALETTE.hallway : i % 2 ? PALETTE.floorAlt : layout.tint;
+    drawRect(scene, room.x, room.y, room.w, room.h, fill, PALETTE.wallLine, 2);
     scene.add
       .text(room.x + 10, room.y + 8, room.name, {
         fontFamily: "Inter, sans-serif",
@@ -103,24 +169,30 @@ export function drawHouseWorld(scene: Phaser.Scene): HouseWorldResult {
       .setDepth(2);
   });
 
-  drawDoor(scene, 190, 260, 46, 14);
-  drawDoor(scene, 540, 260, 46, 14);
-  drawDoor(scene, 170, 330, 46, 14);
-  drawDoor(scene, 430, 330, 46, 14);
-  drawDoor(scene, 650, 330, 46, 14);
+  // Doorway gaps in the hallway walls, derived from each room's connector.
+  layout.connectors.forEach((c) => {
+    const gapX = c.x + c.w / 2;
+    const wallY = c.y < 270 ? 270 : 330; // top rooms join the hallway's top wall
+    drawDoor(scene, gapX, wallY, 46, 14);
+  });
 
-  const attic = ROOMS.find((r) => r.isAttic)!;
-  scene.add
-    .text(attic.x + attic.w / 2, attic.y + attic.h / 2, "Back door", {
-      fontFamily: "Inter, sans-serif",
-      fontSize: "13px",
-      color: "#8a8690",
-      align: "center"
-    })
-    .setOrigin(0.5)
-    .setDepth(2);
+  // Exit caption inside the exit room.
+  const exitRoom = layout.rooms.find((r) => r.key === layout.exit.roomKey);
+  if (exitRoom) {
+    scene.add
+      .text(exitRoom.x + exitRoom.w / 2, exitRoom.y + 22, exitCaption(layout.exit.type), {
+        fontFamily: "Inter, sans-serif",
+        fontSize: "12px",
+        color: layout.exit.type === "window" ? "#7fc0ff" : "#8a8690",
+        align: "center"
+      })
+      .setOrigin(0.5)
+      .setDepth(2);
+  }
 
-  return drawBackDoor(scene, attic);
+  const escapeMarker = drawExit(scene, layout.exit);
+  const backDoor = { x: layout.exit.x, y: layout.exit.y };
+  return { backDoor, escapeMarker };
 }
 
 export function buildInteractUi(scene: Phaser.Scene): InteractUi {
@@ -228,8 +300,8 @@ function buildInteractable(
   return { container: buildCabinet(scene, def.x, def.y) };
 }
 
-export function spawnInteractables(scene: Phaser.Scene): InteractableMarker[] {
-  return INTERACTABLE_DEFS.map((def) => {
+export function spawnInteractables(scene: Phaser.Scene, layout: FloorLayout): InteractableMarker[] {
+  return layout.interactables.map((def) => {
     const built = buildInteractable(scene, def);
     return {
       def,
@@ -278,8 +350,8 @@ function spawnMoneyMarker(scene: Phaser.Scene, x: number, y: number): Phaser.Gam
   return container;
 }
 
-export function spawnMoney(scene: Phaser.Scene): MoneyMarker[] {
-  return MONEY_SPOTS.map((spot) => ({
+export function spawnMoney(scene: Phaser.Scene, layout: FloorLayout): MoneyMarker[] {
+  return layout.moneySpots.map((spot) => ({
     x: spot.x,
     y: spot.y,
     container: spawnMoneyMarker(scene, spot.x, spot.y),

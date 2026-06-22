@@ -15,8 +15,8 @@ export function Credits() {
       <div className="screen__inner">
         <div className="brand">
           <h1 className="brand__title">Credits</h1>
-          <p className="brand__subtitle">Senior Design — Spring 2026</p>
-          <p className="credits-premise">While the family is away, four robbers hit a quiet mansion for valuables — until a seemingly normal cat reveals something far worse.</p>
+          <p className="brand__subtitle">Senior Design, Spring 2026</p>
+          <p className="credits-premise">While the family is away, four robbers hit a quiet mansion for valuables, until a seemingly normal cat reveals something far worse.</p>
         </div>
 
         <div className="panel">
