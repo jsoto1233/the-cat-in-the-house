@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from "react";
 import { GameClient } from "../game/GameClient";
+import { LIVES_TOTAL } from "../game/house/houseLayout";
 import type { RoomState } from "../types";
 
 export type Screen =
@@ -81,6 +82,8 @@ interface GameContextValue {
   floor: number;
   floorTotal: number;
   advanceFloor: () => void;
+  playerLives: Record<string, number>;
+  setPlayerLives: (lives: Record<string, number>) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -105,6 +108,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gamePlayerIds, setGamePlayerIds] = useState<string[]>([]);
   const [gameSessionKey, setGameSessionKey] = useState(0);
   const [floor, setFloor] = useState(1);
+  const [playerLives, setPlayerLives] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -122,6 +126,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setOutcome(null);
       setMatchTimeLeftMs(null);
       setFloor(1);
+      setPlayerLives(Object.fromEntries(playerIds.map((id) => [id, LIVES_TOTAL])));
       setGameSessionKey((k) => k + 1);
       setScreen("game");
     });
@@ -205,6 +210,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setFloor(1);
+    setPlayerLives({});
     setGameSessionKey((k) => k + 1);
     setScreen("game");
   }, []);
@@ -229,6 +235,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setFloor(1);
+    setPlayerLives({});
     setScreen("menu");
   }, [client]);
 
@@ -263,7 +270,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gameSessionKey,
       floor,
       floorTotal: FLOOR_TOTAL,
-      advanceFloor
+      advanceFloor,
+      playerLives,
+      setPlayerLives
     }),
     [
       client,
@@ -292,7 +301,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gamePlayerIds,
       gameSessionKey,
       floor,
-      advanceFloor
+      advanceFloor,
+      playerLives
     ]
   );
 

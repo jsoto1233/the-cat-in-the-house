@@ -9,6 +9,7 @@ import {
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
+import { LIVES_TOTAL } from "../../game/house/houseLayout";
 
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
@@ -37,7 +38,9 @@ export function GameView() {
     gameSessionKey,
     floor,
     floorTotal,
-    advanceFloor
+    advanceFloor,
+    playerLives,
+    setPlayerLives
   } = useGame();
 
   const isTopFloor = floor >= floorTotal;
@@ -46,6 +49,7 @@ export function GameView() {
   const gameRef = useRef<Phaser.Game | null>(null);
   const timeLeftRef = useRef(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
   const setTimeLeftRef = useRef<(ms: number) => void>(() => {});
+  const setPlayerLivesRef = useRef(setPlayerLives);
 
   const isMultiplayer = !!hostId && connected;
   const isHost = !isMultiplayer || client.localId === hostId;
@@ -71,6 +75,7 @@ export function GameView() {
   });
 
   setTimeLeftRef.current = setTimeLeftMs;
+  setPlayerLivesRef.current = setPlayerLives;
 
   useEffect(() => {
     timeLeftRef.current = timeLeftMs;
@@ -119,6 +124,12 @@ export function GameView() {
     const host = !mp || client.localId === hostId;
     const ids =
       mp && gamePlayerIds.length > 0 ? gamePlayerIds : [client.localId || localId || "p1"];
+    const initialPlayerLives: Record<string, number> = { ...playerLives };
+    for (const id of ids) {
+      if (initialPlayerLives[id] === undefined) {
+        initialPlayerLives[id] = LIVES_TOTAL;
+      }
+    }
     const displayDpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const game = new Phaser.Game({
@@ -141,6 +152,11 @@ export function GameView() {
           g.registry.set("localId", client.localId || localId || "p1");
           g.registry.set("isHost", host);
           g.registry.set("playerIds", ids);
+          g.registry.set("playerLives", initialPlayerLives);
+          g.registry.set(
+            "onPlayerLivesUpdate",
+            (lives: Record<string, number>) => setPlayerLivesRef.current(lives)
+          );
           g.registry.set("getTimeLeftMs", () => timeLeftRef.current);
           g.registry.set(
             "onMove",

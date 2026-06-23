@@ -23,7 +23,7 @@ export interface GameSyncState {
   hasKey?: boolean;
   openedInteractables?: string[];
   cat: { x: number; y: number; mood: string };
-  lives: number;
+  playerLives: Record<string, number>;
   timeLeftMs: number;
   matchEnded?: boolean;
   outcome?: string;
