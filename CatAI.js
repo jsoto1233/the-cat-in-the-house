@@ -1,11 +1,15 @@
 /**
  * CatAI.js
  * =========
- * Ayman's Cat Behavior System for "The Cat in the House"
+ Cat Behavior System for "The Cat in the House"
  *
  * State Machine:
  *   ASLEEP ──► ROAM ──► ALERT ──► HUNT
  * This machine is driven by mood, clues, tasks, and grace behavior.
+ *
+ * Multi-cat (Levels 3–4): instantiate two CatAI instances with distinct
+ * behaviorProfile values. Serialize output is keyed by catId for Vincent's
+ * multiplayer layer — e.g. { cat_a: catA.serialize(), cat_b: catB.serialize() }.
  */
 
 export const CAT_STATES = {
@@ -44,15 +48,84 @@ const MOOD_SPEED_MULT = {
   aggressive: 1.10,
 };
 
+const ALERT_ORBIT = {
+  BASE_RADIUS: 90,
+  SWING:       18,
+};
+
+const TELEPORT = {
+  INTERVAL_MIN:    5,
+  INTERVAL_MAX:    10,
+  CATCH_BLOCK_DIST: 24,
+  ROOM_INSET:      8,
+  PICK_ATTEMPTS:   32,
+  MIN_ROOM_DIST:   80,
+};
+
+const AGGRESSION_DECAY_RATE = 1.5;
+
+/** Data-driven presets — pass into constructor via behaviorProfile. */
+export const CAT_PROFILES = {
+  /** Cat A: baseline thresholds/speed; slower aggression decay. */
+  HUNTER: {
+    id: 'hunter',
+    thresholdMods: {},
+    speedMods: {},
+    orbitRadiusMod: 1.0,
+    aggressionDecayMod: 0.55,
+    enableTeleport: false,
+  },
+  /** Cat B: hunts sooner, slightly slower chase, wider alert orbit. */
+  STALKER: {
+    id: 'stalker',
+    thresholdMods: { HUNT_START: -15 },
+    speedMods: { HUNT: 0.88 },
+    orbitRadiusMod: 1.45,
+    aggressionDecayMod: 1.0,
+    enableTeleport: false,
+  },
+};
+
+/** Levels that spawn two cats with teleport enabled. */
+export const MULTI_CAT_LEVELS = new Set([3, 4]);
+
+/**
+ * Build a behaviorProfile for a given level + role.
+ * Levels 1–2: single cat, no teleport. Levels 3–4: role-specific profiles + teleport.
+ */
+export function profileForLevel(level, role = 'hunter') {
+  const base = role === 'stalker' ? CAT_PROFILES.STALKER : CAT_PROFILES.HUNTER;
+  if (!MULTI_CAT_LEVELS.has(level)) {
+    return { ...base, enableTeleport: false };
+  }
+  return { ...base, enableTeleport: true };
+}
+
 const MAX_STEP_PX = 8;
 
 export class CatAI {
-  constructor(scene, startPos, mapWidth, mapHeight, collisionMap = null) {
+  /**
+   * @param {object} scene
+   * @param {{ x: number, y: number }} startPos
+   * @param {number} mapWidth
+   * @param {number} mapHeight
+   * @param {object|null} collisionMap
+   * @param {object} [options]
+   * @param {string} [options.catId]              - stable id for serialize/broadcast
+   * @param {object} [options.behaviorProfile]    - thresholdMods, speedMods, orbitRadiusMod, etc.
+   * @param {string|null} [options.preferredPlayerId]
+   * @param {{ key: string, x: number, y: number, w: number, h: number }[]} [options.rooms]
+   */
+  constructor(scene, startPos, mapWidth, mapHeight, collisionMap = null, options = {}) {
     this.scene     = scene;
     this.x         = startPos.x;
     this.y         = startPos.y;
     this.mapWidth  = mapWidth;
     this.mapHeight = mapHeight;
+
+    this.catId = options.catId ?? 'cat';
+    this._profile = { ...CAT_PROFILES.HUNTER, ...(options.behaviorProfile ?? {}) };
+    this._rooms = options.rooms ?? null;
 
     this.state      = CAT_STATES.ASLEEP;
     this.aggression = 0;
@@ -72,9 +145,12 @@ export class CatAI {
     this._roamTimer = 0;
     this._pauseTimer = 0;
 
-    this._preferredPlayerId = null;
+    this._preferredPlayerId = options.preferredPlayerId ?? null;
     this._detourTarget = null;
     this._detourTimer = 0;
+
+    this._teleportTimer = this._rollTeleportInterval();
+    this._teleportEnabled = !!this._profile.enableTeleport;
 
     this._listeners = {};
     this._elapsed = 0;
@@ -95,6 +171,7 @@ export class CatAI {
 
     this._tickAggression(dt);
     this._updateState();
+    if (this.awake) this._maybeTeleport(dt, players);
     this._move(dt, players);
   }
 
@@ -112,21 +189,27 @@ export class CatAI {
     this._preferredPlayerId = null;
     this._detourTarget = null;
     this._detourTimer = 0;
+    this._teleportTimer = this._rollTeleportInterval();
     this.aggression = 0;
     this.pendingTasks.clear();
+  }
+
+  /** Assign a preferred player target (used by game layer for multi-cat setup). */
+  setPreferredPlayerId(playerId) {
+    this._preferredPlayerId = playerId ?? null;
   }
 
   onClueCollected(playerId, clueId) {
     this._preferredPlayerId = playerId;
     this._increaseAggression(12);
     this.wake('clue');
-    this._emit('clue_collected', { playerId, clueId, aggression: this.aggression });
+    this._emit('clue_collected', { catId: this.catId, playerId, clueId, aggression: this.aggression });
   }
 
   neglectTask(task) {
     if (TASK_NEGLECT_RATE[task] === undefined) return;
     this.pendingTasks.add(task);
-    this._emit('task_neglected', { task, aggression: this.aggression });
+    this._emit('task_neglected', { catId: this.catId, task, aggression: this.aggression });
   }
 
   completeTask(task) {
@@ -135,23 +218,24 @@ export class CatAI {
 
     const reduction = { FEED: 20, TOY: 15, COMFORT: 30 }[task] ?? 10;
     this.aggression = Math.max(0, this.aggression - reduction);
-    this._emit('task_completed', { task, aggression: this.aggression });
+    this._emit('task_completed', { catId: this.catId, task, aggression: this.aggression });
   }
 
   calm(amount = 15) {
     this.aggression = Math.max(0, this.aggression - amount);
-    this._emit('calmed', { aggression: this.aggression });
+    this._emit('calmed', { catId: this.catId, aggression: this.aggression });
   }
 
   wake(reason = 'timer') {
     if (this.awake) return;
     this.awake = true;
     this._graceRemaining = 0;
-    this.state = this.aggression >= THRESHOLD.ALERT_START ? CAT_STATES.ALERT : CAT_STATES.ROAM;
-    this.speed = SPEED[this.state];
+    this.state = this.aggression >= this._threshold('ALERT_START') ? CAT_STATES.ALERT : CAT_STATES.ROAM;
+    this.speed = this._speedForState(this.state);
     this._roamTarget = null;
     this._pauseTimer = 0;
     this._emit('cat_awoke', {
+      catId: this.catId,
       reason,
       graceRemainingMs: 0,
       aggression: this.aggression,
@@ -159,6 +243,7 @@ export class CatAI {
       mood: this.mood,
     });
     this._emit('state_changed', {
+      catId: this.catId,
       from: CAT_STATES.ASLEEP,
       to: this.state,
       aggression: this.aggression,
@@ -175,6 +260,8 @@ export class CatAI {
 
   serialize() {
     return {
+      catId: this.catId,
+      profileId: this._profile.id ?? this.catId,
       x: Math.round(this.x),
       y: Math.round(this.y),
       state: this.state,
@@ -192,12 +279,73 @@ export class CatAI {
     return 'calm';
   }
 
+  /**
+   * Pick walkable spawn positions in distinct rooms when possible.
+   * @param {{ key: string, x: number, y: number, w: number, h: number }[]} rooms
+   * @param {object|null} collisionMap
+   * @param {number} count
+   * @returns {{ x: number, y: number }[]}
+   */
+  static pickDistinctRoomSpawns(rooms, collisionMap, count = 2) {
+    if (!rooms || rooms.length === 0) return [];
+    const shuffled = [...rooms].sort(() => Math.random() - 0.5);
+    const picks = [];
+    const usedKeys = new Set();
+
+    for (const room of shuffled) {
+      if (picks.length >= count) break;
+      if (usedKeys.has(room.key)) continue;
+      const pos = CatAI._randomWalkableInRoom(room, collisionMap);
+      if (pos) {
+        picks.push(pos);
+        usedKeys.add(room.key);
+      }
+    }
+
+    while (picks.length < count) {
+      const room = shuffled[picks.length % shuffled.length];
+      const pos = CatAI._randomWalkableInRoom(room, collisionMap);
+      if (pos) picks.push(pos);
+      else break;
+    }
+
+    return picks;
+  }
+
+  /**
+   * Spread preferred player targets across cats so they don't all chase one player.
+   * @param {CatAI[]} cats
+   * @param {string[]} playerIds
+   */
+  static assignPreferredTargets(cats, playerIds) {
+    if (!playerIds || playerIds.length === 0) return;
+    const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
+    cats.forEach((cat, i) => {
+      if (!cat._preferredPlayerId) {
+        cat._preferredPlayerId = shuffled[i % shuffled.length];
+      }
+    });
+  }
+
+  _threshold(key) {
+    const base = THRESHOLD[key];
+    const mod = this._profile.thresholdMods?.[key] ?? 0;
+    return base + mod;
+  }
+
+  _speedForState(state) {
+    const base = SPEED[state];
+    const mod = this._profile.speedMods?.[state] ?? 1;
+    return base * mod;
+  }
+
   _tickAggression(dt) {
     for (const task of this.pendingTasks) {
       this._increaseAggression(TASK_NEGLECT_RATE[task] * dt);
     }
     if (this.pendingTasks.size === 0 && this.state !== CAT_STATES.HUNT) {
-      this.aggression = Math.max(0, this.aggression - 1.5 * dt);
+      const decayMod = this._profile.aggressionDecayMod ?? 1;
+      this.aggression = Math.max(0, this.aggression - AGGRESSION_DECAY_RATE * decayMod * dt);
     }
   }
 
@@ -213,24 +361,144 @@ export class CatAI {
         this.state = CAT_STATES.ROAM;
         break;
       case CAT_STATES.ROAM:
-        if (this.aggression >= THRESHOLD.ALERT_START) this.state = CAT_STATES.ALERT;
+        if (this.aggression >= this._threshold('ALERT_START')) this.state = CAT_STATES.ALERT;
         break;
       case CAT_STATES.ALERT:
-        if (this.aggression >= THRESHOLD.HUNT_START) this.state = CAT_STATES.HUNT;
-        else if (this.aggression <= THRESHOLD.ALERT_END) this.state = CAT_STATES.ROAM;
+        if (this.aggression >= this._threshold('HUNT_START')) this.state = CAT_STATES.HUNT;
+        else if (this.aggression <= this._threshold('ALERT_END')) this.state = CAT_STATES.ROAM;
         break;
       case CAT_STATES.HUNT:
-        if (this.aggression <= THRESHOLD.HUNT_END) this.state = CAT_STATES.ALERT;
+        if (this.aggression <= this._threshold('HUNT_END')) this.state = CAT_STATES.ALERT;
         break;
     }
     if (this.state !== prev) {
-      this.speed = SPEED[this.state];
+      this.speed = this._speedForState(this.state);
       this._roamTarget = null;
       this._detourTarget = null;
       this._pauseTimer = 0;
       this._detourTimer = 0;
-      this._emit('state_changed', { from: prev, to: this.state, aggression: this.aggression, mood: this.mood });
+      this._emit('state_changed', {
+        catId: this.catId,
+        from: prev,
+        to: this.state,
+        aggression: this.aggression,
+        mood: this.mood,
+      });
     }
+  }
+
+  _maybeTeleport(dt, players) {
+    if (!this._teleportEnabled || !this.awake) return;
+    if (this._pauseTimer > 0) return;
+
+    this._teleportTimer -= dt;
+    if (this._teleportTimer > 0) return;
+
+    const targetPlayer = this._preferredPlayer(players) || this._nearestPlayer(players);
+    if (
+      this.state === CAT_STATES.HUNT &&
+      targetPlayer &&
+      this._dist(targetPlayer) < TELEPORT.CATCH_BLOCK_DIST
+    ) {
+      this._teleportTimer = 0.5;
+      return;
+    }
+
+    const destination = this._pickTeleportDestination();
+    this._teleportTimer = this._rollTeleportInterval();
+    if (!destination) return;
+
+    const from = { x: this.x, y: this.y };
+    this.x = destination.x;
+    this.y = destination.y;
+    this._path = [];
+    this._pathGoal = null;
+    this._roamTarget = null;
+    this._detourTarget = null;
+    this._pauseTimer = 0.35;
+
+    this._emit('cat_teleported', {
+      catId: this.catId,
+      from,
+      to: { x: this.x, y: this.y },
+      state: this.state,
+      aggression: this.aggression,
+    });
+  }
+
+  _rollTeleportInterval() {
+    return TELEPORT.INTERVAL_MIN + Math.random() * (TELEPORT.INTERVAL_MAX - TELEPORT.INTERVAL_MIN);
+  }
+
+  _currentRoomKey() {
+    if (!this._rooms) return null;
+    for (const room of this._rooms) {
+      if (
+        this.x >= room.x && this.x <= room.x + room.w &&
+        this.y >= room.y && this.y <= room.y + room.h
+      ) {
+        return room.key;
+      }
+    }
+    return null;
+  }
+
+  _pickTeleportDestination() {
+    const currentKey = this._currentRoomKey();
+    let roomPool = this._rooms
+      ? this._rooms.filter(r => r.key !== currentKey)
+      : [];
+
+    if (roomPool.length === 0 && this._rooms) {
+      roomPool = [...this._rooms];
+    }
+
+    for (let attempt = 0; attempt < TELEPORT.PICK_ATTEMPTS; attempt++) {
+      if (roomPool.length > 0) {
+        const room = roomPool[Math.floor(Math.random() * roomPool.length)];
+        const pos = CatAI._randomWalkableInRoom(room, this._collisionMap);
+        if (pos && this._distXY(this.x, this.y, pos.x, pos.y) >= TELEPORT.MIN_ROOM_DIST) {
+          return pos;
+        }
+        continue;
+      }
+
+      if (this._collisionMap) {
+        const pos = CatAI._randomWalkableOnMap(this._collisionMap, this.mapWidth, this.mapHeight);
+        if (pos && this._distXY(this.x, this.y, pos.x, pos.y) >= TELEPORT.MIN_ROOM_DIST) {
+          return pos;
+        }
+      } else {
+        return {
+          x: 40 + Math.random() * (this.mapWidth - 80),
+          y: 40 + Math.random() * (this.mapHeight - 80),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  static _randomWalkableInRoom(room, collisionMap) {
+    const inset = TELEPORT.ROOM_INSET;
+    for (let i = 0; i < TELEPORT.PICK_ATTEMPTS; i++) {
+      const x = room.x + inset + Math.random() * Math.max(1, room.w - inset * 2);
+      const y = room.y + inset + Math.random() * Math.max(1, room.h - inset * 2);
+      if (!collisionMap || collisionMap.isWalkable(x, y)) return { x, y };
+    }
+    return {
+      x: room.x + room.w / 2,
+      y: room.y + room.h / 2,
+    };
+  }
+
+  static _randomWalkableOnMap(collisionMap, mapWidth, mapHeight) {
+    for (let i = 0; i < TELEPORT.PICK_ATTEMPTS; i++) {
+      const x = 20 + Math.random() * (mapWidth - 40);
+      const y = 20 + Math.random() * (mapHeight - 40);
+      if (collisionMap.isWalkable(x, y)) return { x, y };
+    }
+    return null;
   }
 
   _move(dt, players) {
@@ -280,13 +548,11 @@ export class CatAI {
       return;
     }
 
+    const offset = this._alertOffset();
+    const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
     if (this._collisionMap) {
-      const offset = this._alertOffset();
-      const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
       this._followPathOrTarget(destination, dt);
     } else {
-      const offset = this._alertOffset();
-      const destination = { x: targetPlayer.x + offset.x, y: targetPlayer.y + offset.y };
       this._stepToward(destination, dt);
     }
   }
@@ -314,8 +580,8 @@ export class CatAI {
     } else {
       this._stepToward(destination, dt, 0.1);
     }
-    if (this._dist(targetPlayer) < 24) {
-      this._emit('player_caught', { playerId: targetPlayer.id });
+    if (this._dist(targetPlayer) < TELEPORT.CATCH_BLOCK_DIST) {
+      this._emit('player_caught', { catId: this.catId, playerId: targetPlayer.id });
     }
   }
 
@@ -325,7 +591,8 @@ export class CatAI {
       return;
     }
 
-    const goalChanged = !this._pathGoal || this._distXY(target, this._pathGoal) > 64;
+    const goalChanged = !this._pathGoal ||
+      this._distXY(target.x, target.y, this._pathGoal.x, this._pathGoal.y) > 64;
     if (goalChanged || this._path.length === 0) {
       this._path = this._collisionMap.findPath(this.x, this.y, target.x, target.y);
       this._pathGoal = { x: target.x, y: target.y };
@@ -382,8 +649,9 @@ export class CatAI {
   }
 
   _alertOffset() {
+    const orbitMod = this._profile.orbitRadiusMod ?? 1;
     const angle = (this._elapsed * 2) % (Math.PI * 2);
-    const radius = 90 + Math.sin(this._elapsed * 1.3) * 18;
+    const radius = (ALERT_ORBIT.BASE_RADIUS + Math.sin(this._elapsed * 1.3) * ALERT_ORBIT.SWING) * orbitMod;
     return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
   }
 
