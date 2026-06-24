@@ -54,12 +54,14 @@ const ALERT_ORBIT = {
 };
 
 const TELEPORT = {
-  INTERVAL_MIN:    5,
-  INTERVAL_MAX:    10,
-  CATCH_BLOCK_DIST: 24,
-  ROOM_INSET:      8,
-  PICK_ATTEMPTS:   32,
-  MIN_ROOM_DIST:   80,
+  INTERVAL_MIN:       5,
+  INTERVAL_MAX:       10,
+  CATCH_BLOCK_DIST:   24,
+  ROOM_INSET:         8,
+  PICK_ATTEMPTS:      32,
+  NEAR_PLAYER_MIN:    48,
+  NEAR_PLAYER_MAX:    88,
+  MIN_RELOC_DIST:     100,
 };
 
 const AGGRESSION_DECAY_RATE = 1.5;
@@ -86,8 +88,15 @@ export const CAT_PROFILES = {
   },
 };
 
-/** Levels that spawn two cats with teleport enabled. */
+/** Levels that spawn multiple cats with teleport enabled. */
 export const MULTI_CAT_LEVELS = new Set([3, 4]);
+
+/** How many cats to spawn per level (1 on 1–2, 2 on 3, 4 on 4). */
+export function catCountForLevel(level) {
+  if (level >= 4) return 4;
+  if (MULTI_CAT_LEVELS.has(level)) return 2;
+  return 1;
+}
 
 /**
  * Build a behaviorProfile for a given level + role.
@@ -154,6 +163,7 @@ export class CatAI {
 
     this._listeners = {};
     this._elapsed = 0;
+    this._snapToWalkable();
   }
 
   update(delta, players) {
@@ -404,13 +414,14 @@ export class CatAI {
       return;
     }
 
-    const destination = this._pickTeleportDestination();
+    const destination = this._pickTeleportDestination(players);
     this._teleportTimer = this._rollTeleportInterval();
     if (!destination) return;
 
     const from = { x: this.x, y: this.y };
     this.x = destination.x;
     this.y = destination.y;
+    this._snapToWalkable();
     this._path = [];
     this._pathGoal = null;
     this._roamTarget = null;
@@ -443,37 +454,22 @@ export class CatAI {
     return null;
   }
 
-  _pickTeleportDestination() {
-    const currentKey = this._currentRoomKey();
-    let roomPool = this._rooms
-      ? this._rooms.filter(r => r.key !== currentKey)
-      : [];
-
-    if (roomPool.length === 0 && this._rooms) {
-      roomPool = [...this._rooms];
-    }
+  _pickTeleportDestination(players) {
+    const targetPlayer = this._preferredPlayer(players) || this._nearestPlayer(players);
+    if (!targetPlayer) return null;
 
     for (let attempt = 0; attempt < TELEPORT.PICK_ATTEMPTS; attempt++) {
-      if (roomPool.length > 0) {
-        const room = roomPool[Math.floor(Math.random() * roomPool.length)];
-        const pos = CatAI._randomWalkableInRoom(room, this._collisionMap);
-        if (pos && this._distXY(this.x, this.y, pos.x, pos.y) >= TELEPORT.MIN_ROOM_DIST) {
-          return pos;
-        }
-        continue;
-      }
+      const angle = Math.random() * Math.PI * 2;
+      const offset = TELEPORT.NEAR_PLAYER_MIN +
+        Math.random() * (TELEPORT.NEAR_PLAYER_MAX - TELEPORT.NEAR_PLAYER_MIN);
+      const x = targetPlayer.x + Math.cos(angle) * offset;
+      const y = targetPlayer.y + Math.sin(angle) * offset;
 
-      if (this._collisionMap) {
-        const pos = CatAI._randomWalkableOnMap(this._collisionMap, this.mapWidth, this.mapHeight);
-        if (pos && this._distXY(this.x, this.y, pos.x, pos.y) >= TELEPORT.MIN_ROOM_DIST) {
-          return pos;
-        }
-      } else {
-        return {
-          x: 40 + Math.random() * (this.mapWidth - 80),
-          y: 40 + Math.random() * (this.mapHeight - 80),
-        };
-      }
+      if (this._collisionMap && !this._collisionMap.isWalkable(x, y)) continue;
+      if (this._distXY(this.x, this.y, x, y) < TELEPORT.MIN_RELOC_DIST) continue;
+      if (this._distXY(x, y, targetPlayer.x, targetPlayer.y) < TELEPORT.CATCH_BLOCK_DIST) continue;
+
+      return { x, y };
     }
 
     return null;
@@ -586,16 +582,20 @@ export class CatAI {
   }
 
   _followPathOrTarget(target, dt, slowdown = 0) {
+    if (!target) return;
     if (!this._collisionMap) {
       this._stepToward(target, dt, slowdown);
       return;
     }
 
+    const goal = this._nearestWalkable(target.x, target.y);
+    if (!goal) return;
+
     const goalChanged = !this._pathGoal ||
-      this._distXY(target.x, target.y, this._pathGoal.x, this._pathGoal.y) > 64;
+      this._distXY(goal.x, goal.y, this._pathGoal.x, this._pathGoal.y) > 64;
     if (goalChanged || this._path.length === 0) {
-      this._path = this._collisionMap.findPath(this.x, this.y, target.x, target.y);
-      this._pathGoal = { x: target.x, y: target.y };
+      this._path = this._collisionMap.findPath(this.x, this.y, goal.x, goal.y);
+      this._pathGoal = { x: goal.x, y: goal.y };
     }
 
     if (this._path.length > 0) {
@@ -604,10 +604,7 @@ export class CatAI {
       if (this._distXY(this.x, this.y, waypoint.x, waypoint.y) < 10) {
         this._path.shift();
       }
-      return;
     }
-
-    this._stepToward(target, dt, slowdown);
   }
 
   _distXY(x1, y1, x2, y2) {
@@ -641,11 +638,53 @@ export class CatAI {
   }
 
   _pickRoamTarget() {
+    if (this._rooms?.length) {
+      const room = this._rooms[Math.floor(Math.random() * this._rooms.length)];
+      const pos = CatAI._randomWalkableInRoom(room, this._collisionMap);
+      if (pos) {
+        this._roamTarget = pos;
+        this._roamTimer = 3 + Math.random() * 4;
+        return;
+      }
+    }
+    if (this._collisionMap) {
+      const pos = CatAI._randomWalkableOnMap(this._collisionMap, this.mapWidth, this.mapHeight);
+      if (pos) {
+        this._roamTarget = pos;
+        this._roamTimer = 3 + Math.random() * 4;
+        return;
+      }
+    }
     this._roamTarget = {
       x: 40 + Math.random() * (this.mapWidth - 80),
       y: 40 + Math.random() * (this.mapHeight - 80),
     };
     this._roamTimer = 3 + Math.random() * 4;
+  }
+
+  _nearestWalkable(x, y) {
+    if (!this._collisionMap) return { x, y };
+    if (this._collisionMap.isWalkable(x, y)) return { x, y };
+    const tileW = this._collisionMap.tileW;
+    const tileH = this._collisionMap.tileH;
+    for (let ring = 1; ring <= 6; ring++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        for (let dy = -ring; dy <= ring; dy++) {
+          const px = x + dx * tileW;
+          const py = y + dy * tileH;
+          if (this._collisionMap.isWalkable(px, py)) return { x: px, y: py };
+        }
+      }
+    }
+    return null;
+  }
+
+  _snapToWalkable() {
+    const snapped = this._nearestWalkable(this.x, this.y);
+    if (snapped) {
+      this.x = snapped.x;
+      this.y = snapped.y;
+    }
   }
 
   _alertOffset() {
@@ -658,10 +697,11 @@ export class CatAI {
   _randomDetourNear(player) {
     const angle = Math.random() * Math.PI * 2;
     const radius = 30 + Math.random() * 30;
-    return {
+    const raw = {
       x: player.x + Math.cos(angle) * radius,
       y: player.y + Math.sin(angle) * radius,
     };
+    return this._nearestWalkable(raw.x, raw.y) ?? raw;
   }
 
   _reachedTarget(t) {

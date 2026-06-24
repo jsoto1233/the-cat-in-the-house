@@ -13,13 +13,14 @@
  * Emits events that Vincent's multiplayer layer (Socket.io) can forward.
  *
  * Levels 1–2: one cat, no teleport.
- * Levels 3–4: two cats (Hunter + Stalker), teleport enabled — tick/serialize via `cats`.
+ * Level 3: two cats (Hunter + Stalker), teleport enabled.
+ * Level 4: four cats, teleport enabled — tick/serialize via `cats`.
  */
 
 import {
   CatAI,
   CAT_STATES,
-  MULTI_CAT_LEVELS,
+  catCountForLevel,
   profileForLevel,
 } from './CatAI.js';
 
@@ -240,25 +241,25 @@ export class GameLogic {
   // ─────────────────────────────────────────────────────────────────
 
   _spawnCats(scene, catStartPos, collisionMap) {
+    const count = catCountForLevel(this.level);
+    if (count === 1) {
+      return [
+        this._createCat(scene, catStartPos, collisionMap, {
+          catId: 'cat',
+          behaviorProfile: profileForLevel(this.level, 'hunter'),
+        }),
+      ];
+    }
+
+    const spawns = CatAI.pickDistinctRoomSpawns(this.rooms, collisionMap, count);
+    const roles = ['hunter', 'stalker', 'hunter', 'stalker'];
     const cats = [];
 
-    if (MULTI_CAT_LEVELS.has(this.level)) {
-      const spawns = CatAI.pickDistinctRoomSpawns(this.rooms, collisionMap, 2);
-      const spawnA = spawns[0] ?? catStartPos;
-      const spawnB = spawns[1] ?? { x: catStartPos.x + 48, y: catStartPos.y };
-
-      cats.push(this._createCat(scene, spawnA, collisionMap, {
-        catId: 'cat_a',
-        behaviorProfile: profileForLevel(this.level, 'hunter'),
-      }));
-      cats.push(this._createCat(scene, spawnB, collisionMap, {
-        catId: 'cat_b',
-        behaviorProfile: profileForLevel(this.level, 'stalker'),
-      }));
-    } else {
-      cats.push(this._createCat(scene, catStartPos, collisionMap, {
-        catId: 'cat',
-        behaviorProfile: profileForLevel(this.level, 'hunter'),
+    for (let i = 0; i < count; i++) {
+      const spawn = spawns[i] ?? { x: catStartPos.x + i * 48, y: catStartPos.y };
+      cats.push(this._createCat(scene, spawn, collisionMap, {
+        catId: `cat_${String.fromCharCode(97 + i)}`,
+        behaviorProfile: profileForLevel(this.level, roles[i % roles.length]),
       }));
     }
 

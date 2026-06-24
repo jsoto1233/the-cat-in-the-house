@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { CatAI } from "../CatAI";
+import { CatAI, catCountForLevel, profileForLevel, type CatRole } from "../CatAI";
 import {
   CASH_TOTAL,
   CAT_SPAWN,
@@ -40,6 +40,17 @@ import {
 
 export type { MatchOutcome, PreviewDifficulty, PreviewMood, PreviewState } from "../house/houseLayout";
 
+interface CatEntry {
+  id: string;
+  ai: CatAI;
+  container: Phaser.GameObjects.Container;
+  spawn: { x: number; y: number };
+}
+
+const CAT_ROLES: CatRole[] = ["hunter", "stalker", "hunter", "stalker"];
+const CAT_BODY_COLORS = [PALETTE.cat, 0x2a2835, 0x1c1c26, 0x302838];
+const CAT_EYE_COLORS = [0xffe23a, 0xff9040, 0xffe23a, 0xff6688];
+
 export class PlayableHouseScene extends Phaser.Scene {
   private difficulty: PreviewDifficulty = "normal";
   private multiplayer = false;
@@ -56,11 +67,11 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private collisionMap = createHouseCollisionMap();
   private layout: FloorLayout = getFloorLayout(1);
+  private floor = 1;
   private catSpawnPos = CAT_SPAWN;
-  private cat!: CatAI;
+  private catEntries: CatEntry[] = [];
 
   private playerContainer!: Phaser.GameObjects.Container;
-  private catContainer!: Phaser.GameObjects.Container;
 
   private playerX = PLAYER_SPAWN.x;
   private playerY = PLAYER_SPAWN.y;
@@ -110,6 +121,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     // Which floor (level) to build. GameView puts this in the registry and
     // remounts the whole game for each floor, so reading it here is enough.
     const floor = Number(this.registry.get("floor")) || 1;
+    this.floor = floor;
     this.layout = getFloorLayout(floor);
     this.catSpawnPos = this.layout.catSpawn;
 
@@ -126,12 +138,11 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.money = spawnMoney(this, this.layout);
     this.interactables = spawnInteractables(this, this.layout);
     this.playerContainer = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y);
-    this.catContainer = buildCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
     ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
 
     if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
-    this.setupCat();
+    this.setupCats();
 
     this.playerContainer.setPosition(this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
@@ -170,10 +181,13 @@ export class PlayableHouseScene extends Phaser.Scene {
     const uncollectedLoot = this.money
       .filter((m) => !m.collected)
       .map((m) => ({ x: m.x, y: m.y }));
-    this.cat.setHuntContext(this.cashFound, uncollectedLoot);
+    const players = this.getAllPlayerStates();
 
-    this.cat.update(delta, this.getAllPlayerStates());
-    this.catContainer.setPosition(this.cat.x, this.cat.y);
+    for (const entry of this.catEntries) {
+      entry.ai.setHuntContext(this.cashFound, uncollectedLoot);
+      entry.ai.update(delta, players);
+      entry.container.setPosition(entry.ai.x, entry.ai.y);
+    }
 
     this.checkPickups();
     this.checkInteractInput();
@@ -213,6 +227,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     hasKey?: boolean;
     openedInteractables?: string[];
     cat: { x: number; y: number; mood: string };
+    cats?: Record<string, { x: number; y: number; mood: string }>;
     lives: number;
     timeLeftMs: number;
     matchEnded?: boolean;
@@ -232,9 +247,22 @@ export class PlayableHouseScene extends Phaser.Scene {
       const item = this.interactables.find((i) => i.def.id === id);
       if (item && !item.opened) applyOpenedVisual(item);
     });
-    this.cat.x = state.cat.x;
-    this.cat.y = state.cat.y;
-    this.catContainer.setPosition(state.cat.x, state.cat.y);
+    if (state.cats) {
+      for (const entry of this.catEntries) {
+        const synced = state.cats[entry.id];
+        if (!synced) continue;
+        entry.ai.x = synced.x;
+        entry.ai.y = synced.y;
+        entry.container.setPosition(synced.x, synced.y);
+      }
+    } else {
+      const primary = this.catEntries[0];
+      if (primary) {
+        primary.ai.x = state.cat.x;
+        primary.ai.y = state.cat.y;
+        primary.container.setPosition(state.cat.x, state.cat.y);
+      }
+    }
     this.lastMood = state.cat.mood as PreviewMood;
     for (const [id, p] of Object.entries(state.players)) {
       if (id === this.localId) continue;
@@ -273,12 +301,37 @@ export class PlayableHouseScene extends Phaser.Scene {
     ]);
   }
 
-  private setupCat() {
-    this.cat = new CatAI(this.catSpawnPos, 800, 600, this.collisionMap);
-    this.cat.reset();
-    this.cat.setDifficulty(this.difficulty);
-  }
+  private setupCats() {
+    const count = catCountForLevel(this.floor);
+    const spawns = CatAI.pickDistinctRoomSpawns(this.layout.rooms, this.collisionMap, count);
+    if (spawns.length === 0) spawns.push({ ...this.catSpawnPos });
 
+    this.catEntries = [];
+    for (let i = 0; i < count; i++) {
+      const role = CAT_ROLES[i % CAT_ROLES.length];
+      const catId = count === 1 ? "cat" : `cat_${String.fromCharCode(97 + i)}`;
+      const spawn = spawns[i] ?? { ...this.catSpawnPos, x: this.catSpawnPos.x + i * 40 };
+      const ai = new CatAI(spawn, 800, 600, this.collisionMap, {
+        catId,
+        behaviorProfile: profileForLevel(this.floor, role),
+        rooms: this.layout.rooms
+      });
+      ai.reset();
+      ai.setDifficulty(this.difficulty);
+      const container = buildCat(
+        this,
+        spawn.x,
+        spawn.y,
+        CAT_BODY_COLORS[i] ?? PALETTE.cat,
+        CAT_EYE_COLORS[i] ?? 0xffe23a
+      );
+      this.catEntries.push({ id: catId, ai, container, spawn: { ...spawn } });
+    }
+    CatAI.assignPreferredTargets(
+      this.catEntries.map((e) => e.ai),
+      this.playerIds
+    );
+  }
   private movePlayer(dt: number) {
     let dx = 0;
     let dy = 0;
@@ -322,13 +375,23 @@ export class PlayableHouseScene extends Phaser.Scene {
     for (const [id, pos] of this.remotePositions) {
       players[id] = { x: pos.x, y: pos.y, alive: pos.alive };
     }
+    const cats: Record<string, { x: number; y: number; mood: string }> = {};
+    for (const entry of this.catEntries) {
+      cats[entry.id] = { x: entry.ai.x, y: entry.ai.y, mood: entry.ai.mood };
+    }
+    const primary = this.catEntries[0]?.ai;
     return {
       players,
       cashFound: this.cashFound,
       collectedLoot: this.money.map((m, i) => (m.collected ? i : -1)).filter((i) => i >= 0),
       hasKey: this.hasKey,
       openedInteractables: this.interactables.filter((i) => i.opened).map((i) => i.def.id),
-      cat: { x: this.cat.x, y: this.cat.y, mood: this.cat.mood },
+      cats,
+      cat: {
+        x: primary?.x ?? 0,
+        y: primary?.y ?? 0,
+        mood: primary?.mood ?? "calm"
+      },
       lives: this.lives,
       timeLeftMs: this.getTimeLeftMs?.() ?? 60000,
       matchEnded: this.matchEnded
@@ -393,7 +456,9 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (def.contains === "key") {
       this.hasKey = true;
       showInteractFeedback(this, this.feedbackText, "Found a key!");
-      this.cat.onClueCollected(playerId, `key_${def.id}`);
+      for (const entry of this.catEntries) {
+        entry.ai.onClueCollected(playerId, `key_${def.id}`);
+      }
     } else if (def.contains === "cash") {
       this.grantCash(1, playerId, def.id);
       showInteractFeedback(this, this.feedbackText, "Found $1!");
@@ -411,7 +476,9 @@ export class PlayableHouseScene extends Phaser.Scene {
     const added = Math.min(amount, CASH_TOTAL - this.cashFound);
     if (added <= 0) return;
     this.cashFound += added;
-    this.cat.onClueCollected(playerId, `loot_${sourceId}`);
+    for (const entry of this.catEntries) {
+      entry.ai.onClueCollected(playerId, `loot_${sourceId}`);
+    }
   }
 
   private updateInteractPrompt() {
@@ -439,7 +506,9 @@ export class PlayableHouseScene extends Phaser.Scene {
         m.collected = true;
         m.container.destroy();
         this.cashFound = Math.min(CASH_TOTAL, this.cashFound + 1);
-        this.cat.onClueCollected(p.id, `cash_${this.cashFound}`);
+        for (const entry of this.catEntries) {
+          entry.ai.onClueCollected(p.id, `cash_${this.cashFound}`);
+        }
         this.emitPreview();
         break;
       }
@@ -450,34 +519,36 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (this.invulnRemaining > 0) return;
     for (const p of this.getAllPlayerStates()) {
       if (!p.alive) continue;
-      const dx = this.cat.x - p.x;
-      const dy = this.cat.y - p.y;
-      if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) continue;
+      for (const entry of this.catEntries) {
+        const dx = entry.ai.x - p.x;
+        const dy = entry.ai.y - p.y;
+        if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) continue;
 
-      this.lives = Math.max(0, this.lives - 1);
-      this.emitPreview();
+        this.lives = Math.max(0, this.lives - 1);
+        this.emitPreview();
 
-      if (this.lives <= 0) {
-        this.endMatch("caught");
+        if (this.lives <= 0) {
+          this.endMatch("caught");
+          return;
+        }
+
+        this.invulnRemaining = INVULN_SECONDS;
+        if (p.id === this.localId) {
+          this.playerX = PLAYER_SPAWN.x;
+          this.playerY = PLAYER_SPAWN.y;
+          this.playerContainer.setPosition(this.playerX, this.playerY);
+        } else {
+          const idx = this.playerIds.indexOf(p.id);
+          const spawn = PLAYER_SPAWNS[idx] ?? PLAYER_SPAWN;
+          this.remotePositions.set(p.id, { x: spawn.x, y: spawn.y, alive: true });
+          this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
+        }
+        entry.ai.x = entry.spawn.x;
+        entry.ai.y = entry.spawn.y;
+        entry.container.setPosition(entry.ai.x, entry.ai.y);
+        entry.ai.calm(25);
         return;
       }
-
-      this.invulnRemaining = INVULN_SECONDS;
-      if (p.id === this.localId) {
-        this.playerX = PLAYER_SPAWN.x;
-        this.playerY = PLAYER_SPAWN.y;
-        this.playerContainer.setPosition(this.playerX, this.playerY);
-      } else {
-        const idx = this.playerIds.indexOf(p.id);
-        const spawn = PLAYER_SPAWNS[idx] ?? PLAYER_SPAWN;
-        this.remotePositions.set(p.id, { x: spawn.x, y: spawn.y, alive: true });
-        this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
-      }
-      this.cat.x = this.catSpawnPos.x;
-      this.cat.y = this.catSpawnPos.y;
-      this.catContainer.setPosition(this.cat.x, this.cat.y);
-      this.cat.calm(25);
-      return;
     }
   }
 
@@ -495,7 +566,12 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private syncMoodAndAttic() {
-    const mood = this.cat.mood;
+    const moods = this.catEntries.map((e) => e.ai.mood);
+    const mood: PreviewMood = moods.includes("aggressive")
+      ? "aggressive"
+      : moods.includes("warning")
+        ? "warning"
+        : "calm";
     const atticUnlocked = this.cashFound >= CASH_TOTAL;
     if (mood !== this.lastMood || atticUnlocked !== this.lastAtticUnlocked) {
       this.emitPreview();
@@ -520,7 +596,12 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private emitPreview(_initial = false) {
     if (!this.multiplayer || this.isHost) {
-      this.lastMood = this.cat ? this.cat.mood : "calm";
+      const moods = this.catEntries.map((e) => e.ai.mood);
+      this.lastMood = moods.includes("aggressive")
+        ? "aggressive"
+        : moods.includes("warning")
+          ? "warning"
+          : "calm";
     }
     this.lastAtticUnlocked = this.cashFound >= CASH_TOTAL;
     const state: PreviewState = {
