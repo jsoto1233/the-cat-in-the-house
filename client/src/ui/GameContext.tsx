@@ -130,11 +130,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameSessionKey((k) => k + 1);
       setScreen("game");
     });
+    const offAdvanceFloor = client.onAdvanceFloor(({ floor: nextFloor, playerLives: lives }) => {
+      setFloor(nextFloor);
+      setPlayerLives(lives);
+      setOutcome(null);
+      setMatchTimeLeftMs(null);
+      setGameSessionKey((k) => k + 1);
+    });
     client.socket.onDisconnected(() => setConnected(false));
     return () => {
       offConnect();
       offRoom();
       offGameStart();
+      offAdvanceFloor();
     };
   }, [client]);
 

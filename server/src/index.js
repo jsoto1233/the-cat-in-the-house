@@ -146,6 +146,7 @@ io.on("connection", (socket) => {
       if (!p.ready) return;
     }
     room.inGame = true;
+    room.floor = 1;
     room.timeLeftMs = room.difficulty === "ludicrous" ? 30000 : 60000;
     io.to(room.code).emit("game_start", {
       hostId: room.hostId,
@@ -184,6 +185,19 @@ io.on("connection", (socket) => {
     if (!room?.inGame || socket.id !== room.hostId) return;
     io.to(room.code).emit("game_over", { outcome });
     room.inGame = false;
+  });
+
+  socket.on("advance_floor", (payload) => {
+    const room = getRoom(socket);
+    if (!room?.inGame || socket.id !== room.hostId) return;
+    const floor = Number(payload?.floor);
+    if (!Number.isFinite(floor) || floor < 1) return;
+    room.floor = floor;
+    room.playerLives = payload.playerLives ?? room.playerLives;
+    io.to(room.code).emit("advance_floor", {
+      floor,
+      playerLives: room.playerLives ?? {}
+    });
   });
 
   socket.on("disconnect", () => {

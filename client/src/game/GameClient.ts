@@ -15,8 +15,15 @@ type GameStateHandler = (state: GameSyncState) => void;
 type GameOverHandler = (payload: { outcome: string }) => void;
 type PlayerMoveHandler = (payload: { id: string; x: number; y: number }) => void;
 type PlayerInteractHandler = (payload: { id: string }) => void;
+type AdvanceFloorHandler = (payload: AdvanceFloorPayload) => void;
+
+export interface AdvanceFloorPayload {
+  floor: number;
+  playerLives: Record<string, number>;
+}
 
 export interface GameSyncState {
+  floor?: number;
   players: Record<string, { x: number; y: number; alive: boolean }>;
   cashFound: number;
   collectedLoot: number[];
@@ -81,6 +88,10 @@ class GameSocket {
   sendGameOver(outcome: string): void {
     this.ioSocket.emit("game_over", { outcome });
   }
+
+  sendAdvanceFloor(payload: AdvanceFloorPayload): void {
+    this.ioSocket.emit("advance_floor", payload);
+  }
 }
 
 export class GameClient {
@@ -98,6 +109,7 @@ export class GameClient {
   private gameOverHandlers = new Set<GameOverHandler>();
   private playerMoveHandlers = new Set<PlayerMoveHandler>();
   private playerInteractHandlers = new Set<PlayerInteractHandler>();
+  private advanceFloorHandlers = new Set<AdvanceFloorHandler>();
   private sceneUnsubs: Array<() => void> = [];
 
   constructor() {
@@ -132,6 +144,10 @@ export class GameClient {
 
     this.ioSocket.on("game_over", (payload: { outcome: string }) => {
       this.gameOverHandlers.forEach((cb) => cb(payload));
+    });
+
+    this.ioSocket.on("advance_floor", (payload: AdvanceFloorPayload) => {
+      this.advanceFloorHandlers.forEach((cb) => cb(payload));
     });
 
     this.ioSocket.on("player_move", (payload: { id: string; x: number; y: number }) => {
@@ -226,6 +242,11 @@ export class GameClient {
   onPlayerInteract(cb: PlayerInteractHandler): () => void {
     this.playerInteractHandlers.add(cb);
     return () => this.playerInteractHandlers.delete(cb);
+  }
+
+  onAdvanceFloor(cb: AdvanceFloorHandler): () => void {
+    this.advanceFloorHandlers.add(cb);
+    return () => this.advanceFloorHandlers.delete(cb);
   }
 
   mountGame(_containerId: string): void {}

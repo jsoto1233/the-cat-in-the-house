@@ -56,6 +56,8 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private collisionMap = createHouseCollisionMap();
   private layout: FloorLayout = getFloorLayout(1);
+  private currentFloor = 1;
+  private floorTotal = 4;
   private catSpawnPos = CAT_SPAWN;
   private cat!: CatAI;
 
@@ -118,8 +120,9 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     // Which floor (level) to build. GameView puts this in the registry and
     // remounts the whole game for each floor, so reading it here is enough.
-    const floor = Number(this.registry.get("floor")) || 1;
-    this.layout = getFloorLayout(floor);
+    this.currentFloor = Number(this.registry.get("floor")) || 1;
+    this.floorTotal = Number(this.registry.get("floorTotal")) || 4;
+    this.layout = getFloorLayout(this.currentFloor);
     this.catSpawnPos = this.layout.catSpawn;
 
     const spawnIdx = Math.max(0, this.playerIds.indexOf(this.localId));
@@ -221,6 +224,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   applyGameState(state: {
+    floor?: number;
     players: Record<string, { x: number; y: number; alive: boolean }>;
     cashFound: number;
     collectedLoot: number[];
@@ -232,6 +236,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     matchEnded?: boolean;
     outcome?: MatchOutcome;
   }) {
+    if (state.floor !== undefined && state.floor !== this.currentFloor) return;
+
     this.cashFound = state.cashFound;
     this.hasKey = !!state.hasKey;
     for (const [id, lives] of Object.entries(state.playerLives)) {
@@ -377,6 +383,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       };
     }
     return {
+      floor: this.currentFloor,
       players,
       cashFound: this.cashFound,
       collectedLoot: this.money.map((m, i) => (m.collected ? i : -1)).filter((i) => i >= 0),
@@ -593,10 +600,27 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (this.matchEnded) return;
     this.matchEnded = true;
     this.emitPreview();
+
+    const floorCleared = outcome === "escaped" && this.currentFloor < this.floorTotal;
+    const runEnded = outcome === "caught" || (outcome === "escaped" && !floorCleared);
+
     if (this.multiplayer && this.isHost) {
-      this.onHostSync?.({ ...this.buildSyncState(), matchEnded: true, outcome });
-      this.registry.get("onMatchOver")?.(outcome);
+      this.onHostSync?.({
+        ...this.buildSyncState(),
+        matchEnded: runEnded,
+        outcome: runEnded ? outcome : undefined
+      });
+
+      if (floorCleared) {
+        const onFloorAdvance = this.registry.get("onFloorAdvance") as
+          | ((lives: Record<string, number>) => void)
+          | undefined;
+        onFloorAdvance?.(Object.fromEntries(this.playerLives));
+      } else if (runEnded) {
+        this.registry.get("onMatchOver")?.(outcome);
+      }
     }
+
     this.game.events.emit("match:over", { outcome });
   }
 

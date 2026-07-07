@@ -120,6 +120,10 @@ export function GameView() {
     const container = containerRef.current;
     if (!container) return;
 
+    setGameOver(false);
+    setTimeLeftMs(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
+    if (floor > 1) setFloorSplash(true);
+
     const mp = !!hostId && connected;
     const host = !mp || client.localId === hostId;
     const ids =
@@ -148,6 +152,7 @@ export function GameView() {
         preBoot: (g) => {
           g.registry.set("difficulty", difficulty);
           g.registry.set("floor", floor);
+          g.registry.set("floorTotal", floorTotal);
           g.registry.set("multiplayer", mp);
           g.registry.set("localId", client.localId || localId || "p1");
           g.registry.set("isHost", host);
@@ -165,6 +170,15 @@ export function GameView() {
           g.registry.set("onInteract", mp ? () => client.socket.sendInteract() : undefined);
           g.registry.set("onHostSync", (state: GameSyncState) => client.socket.sendGameState(state));
           g.registry.set("onMatchOver", (outcome: string) => client.socket.sendGameOver(outcome));
+          g.registry.set(
+            "onFloorAdvance",
+            (lives: Record<string, number>) => {
+              client.socket.sendAdvanceFloor({
+                floor: Math.min(floorTotal, floor + 1),
+                playerLives: lives
+              });
+            }
+          );
           g.registry.set("attachNetwork", (scene: PlayableHouseScene) => {
             client.attachScene(scene, {
               isHost: host,
@@ -186,11 +200,11 @@ export function GameView() {
 
     const onPreview = (state: PreviewState) => setPreview(state);
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
-      // Clearing a floor (single-player): if there's a floor above, climb to it
-      // instead of ending the run. The top floor's escape is the real win.
-      if (outcome === "escaped" && !mp && floor < floorTotal) {
-        setGameOver(true); // freeze this floor's scene during the remount
-        advanceFloor();
+      // Clearing a floor: if there's a floor above, climb to it instead of ending
+      // the run. Multiplayer clients advance together via the advance_floor socket event.
+      if (outcome === "escaped" && floor < floorTotal) {
+        setGameOver(true);
+        if (!mp) advanceFloor();
         return;
       }
       setGameOver(true);
@@ -229,7 +243,7 @@ export function GameView() {
     ? "escape through the window on this top floor."
     : `reach the stairs up to Floor ${floor + 1}.`;
   const objective = isMultiplayer
-    ? "Co-op heist: collect all $ valuables, search cabinets for a chest key, and escape together."
+    ? `Co-op heist (Floor ${floor} of ${floorTotal}): collect all $ valuables, search cabinets for a chest key, then ${exitLine}`
     : `Solo heist (Floor ${floor} of ${floorTotal}): collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, then ${exitLine}`;
 
   return (
