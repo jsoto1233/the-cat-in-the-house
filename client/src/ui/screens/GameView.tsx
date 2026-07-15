@@ -200,8 +200,6 @@ export function GameView() {
 
     const onPreview = (state: PreviewState) => setPreview(state);
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
-      // Clearing a floor: if there's a floor above, climb to it instead of ending
-      // the run. Multiplayer clients advance together via the advance_floor socket event.
       if (outcome === "escaped" && floor < floorTotal) {
         setGameOver(true);
         if (!mp) advanceFloor();
