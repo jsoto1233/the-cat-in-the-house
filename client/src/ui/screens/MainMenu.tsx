@@ -108,7 +108,6 @@ export function MainMenu() {
                     onClick={() => setDifficulty("normal")}
                   >
                     Normal
-                    <small>fair pace · no mercy delay</small>
                   </button>
                   <button
                     type="button"
@@ -119,7 +118,6 @@ export function MainMenu() {
                     onClick={() => setDifficulty("ludicrous")}
                   >
                     Ludicrous
-                    <small>no mercy · chaos</small>
                   </button>
                 </div>
               </div>

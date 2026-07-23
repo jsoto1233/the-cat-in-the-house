@@ -108,7 +108,6 @@ export function Lobby() {
                 onClick={() => pickDifficulty("normal")}
               >
                 Normal
-                <small>60s · fair pace</small>
               </button>
               <button
                 type="button"
@@ -120,7 +119,6 @@ export function Lobby() {
                 onClick={() => pickDifficulty("ludicrous")}
               >
                 Ludicrous
-                <small>30s · no mercy</small>
               </button>
             </div>
           </div>
