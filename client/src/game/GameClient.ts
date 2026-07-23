@@ -2,7 +2,9 @@ import { io, type Socket } from "socket.io-client";
 import type { RoomState } from "../types";
 import type { MatchOutcome, PlayableHouseScene } from "./scenes/PlayableHouseScene";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
+const SERVER_URL =
+  import.meta.env.VITE_SERVER_URL ??
+  (import.meta.env.PROD ? window.location.origin : "http://localhost:3001");
 
 type ConnectedHandler = (id: string) => void;
 type RoomHandler = (state: RoomState) => void;

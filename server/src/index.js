@@ -1,14 +1,11 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
 app.use(cors());
-
-app.get("/", (_req, res) => {
-  res.send("Cat in the House backend is running!");
-});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -206,6 +203,13 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3001, () => {
-  console.log("Server running on port 3001 \nServer running on http://localhost:3001/");
+const clientDist = path.join(__dirname, "../../client/dist");
+app.use(express.static(clientDist));
+app.get("/{*splat}", (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

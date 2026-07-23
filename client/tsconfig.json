@@ -6,9 +6,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "baseUrl": ".",
-    "types": ["vite/client"]
+    "noEmit": true
   },
   "include": ["src"]
 }
