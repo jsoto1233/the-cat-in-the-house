@@ -43,6 +43,57 @@ export interface InteractableDef {
   contains: InteractableContent;
 }
 
+// ---------------------------------------------------------------------------
+// Furniture / decoration. Purely a layer on top of the existing room + object
+// model: it never changes loot, keys, chests, doors or the exit. Each piece is
+// drawn by houseSprites.spawnFurniture and, when `solid` is true, its footprint
+// (cx, cy centred; fw x fh) is baked into the floor's CollisionMap so BOTH the
+// player (resolveMove) and the cat (A* findPath) treat it as a wall. Small decor
+// (solid=false) is visual only and has no collision footprint.
+// ---------------------------------------------------------------------------
+export type FurnitureKind =
+  | "couch"
+  | "coffeeTable"
+  | "tvStand"
+  | "counter"
+  | "stove"
+  | "fridge"
+  | "diningTable"
+  | "bed"
+  | "dresser"
+  | "nightstand"
+  | "bathtub"
+  | "toilet"
+  | "sink"
+  | "shelving"
+  | "sideTable"
+  | "rug"
+  | "wallArt"
+  | "framedPictures"
+  | "lamp"
+  | "plant"
+  | "mirror"
+  | "coatRack"
+  | "clutter";
+
+export interface FurnitureDef {
+  id: string;
+  kind: FurnitureKind;
+  /** Centre of the piece in world space. */
+  x: number;
+  y: number;
+  /** Draw size. Falls back to a per-kind default when omitted. */
+  w?: number;
+  h?: number;
+  /** Solid furniture blocks movement/pathfinding; decor does not. */
+  solid?: boolean;
+  /** Collision footprint (defaults to draw size). Only used when solid. */
+  fw?: number;
+  fh?: number;
+  /** Rotate 90° for pieces defined against a vertical wall (visual only). */
+  vertical?: boolean;
+}
+
 export const PALETTE = {
   wallLine: 0x32324a,
   floor: 0x121219,
@@ -68,7 +119,35 @@ export const PALETTE = {
   chest: 0x3d2817,
   chestTrim: 0x5a3d24,
   chestLock: 0xffd633,
-  interactHint: "#9a94a8"
+  interactHint: "#9a94a8",
+  // Furniture / decoration palette. Muted tones so loot + characters still pop.
+  couch: 0x3b4a63,
+  couchDark: 0x2a374c,
+  couchCushion: 0x47597a,
+  wood: 0x4a3a2a,
+  woodDark: 0x33271c,
+  woodLight: 0x5e4a36,
+  appliance: 0x3d4450,
+  applianceLight: 0x525a68,
+  appliancePanel: 0x2a2f38,
+  counterTop: 0x4a4f59,
+  fabric: 0x53506a,
+  fabricDark: 0x3a3850,
+  bedSheet: 0x4a5a74,
+  bedPillow: 0x9aa6ba,
+  screen: 0x14171f,
+  screenGlow: 0x2b4a6e,
+  porcelain: 0x9aa2ad,
+  porcelainDark: 0x6d747d,
+  rug: 0x5a3550,
+  rugAlt: 0x40465e,
+  rugTrim: 0x785070,
+  art: 0x6a5a44,
+  artFrame: 0x271d14,
+  plantPot: 0x6b4530,
+  plantLeaf: 0x3f6b45,
+  lampShade: 0xd9c07a,
+  metal: 0x40444c
 };
 
 export const WORLD = { x: 30, y: 30, w: 740, h: 540 };

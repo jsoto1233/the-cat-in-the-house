@@ -32,6 +32,7 @@ import {
   buildPlayer,
   drawHouseWorld,
   showInteractFeedback,
+  spawnFurniture,
   spawnInteractables,
   spawnMoney,
   type InteractableMarker,
@@ -133,6 +134,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#08080c");
 
     const world = drawHouseWorld(this, this.layout);
+    spawnFurniture(this, this.layout); // decoration layer (solid pieces bake into collision below)
     this.backDoor = world.backDoor;
     this.collisionMap = createFloorCollisionMap(this.layout);
     this.money = spawnMoney(this, this.layout);
