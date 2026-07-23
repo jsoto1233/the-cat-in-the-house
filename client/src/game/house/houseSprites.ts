@@ -167,13 +167,6 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
     const fill =
       room.key === "hallway" ? PALETTE.hallway : i % 2 ? PALETTE.floorAlt : layout.tint;
     drawRect(scene, room.x, room.y, room.w, room.h, fill, PALETTE.wallLine, 2);
-    scene.add
-      .text(room.x + 10, room.y + 8, room.name, {
-        fontFamily: "Inter, sans-serif",
-        fontSize: "12px",
-        color: PALETTE.label
-      })
-      .setDepth(2);
   });
 
   // Doorway gaps in the hallway walls, derived from each room's connector.

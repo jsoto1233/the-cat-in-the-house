@@ -99,7 +99,7 @@ export function MainMenu() {
           ) : (
             <div className="btn-stack">
               <div className="difficulty">
-                <span className="difficulty__label">Single-player difficulty</span>
+                <span className="difficulty__label">Difficulty</span>
                 <div className="difficulty__toggle" role="group" aria-label="Difficulty">
                   <button
                     type="button"

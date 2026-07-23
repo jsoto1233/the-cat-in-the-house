@@ -16,7 +16,6 @@ const MATCH_MS_LUDICROUS = 30 * 1000;
 const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
 const MATCH_MS_TICK = 1000;
 const MATCH_MS_NORMAL_FAST_INTERVAL = 500;
-const OBJECTIVE_INTRO_MS = 7000;
 
 function matchMsForDifficulty(difficulty: string) {
   return difficulty === "ludicrous" ? MATCH_MS_LUDICROUS : MATCH_MS_NORMAL;
@@ -55,8 +54,6 @@ export function GameView() {
   const isHost = !isMultiplayer || client.localId === hostId;
 
   const [paused, setPaused] = useState(false);
-  const [objectiveVisible, setObjectiveVisible] = useState(true);
-  const [objectivePanelOpen, setObjectivePanelOpen] = useState(false);
   const [timeLeftMs, setTimeLeftMs] = useState(
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
@@ -82,13 +79,7 @@ export function GameView() {
     setMatchTimeLeftMs(timeLeftMs);
   }, [timeLeftMs, setMatchTimeLeftMs]);
 
-  const showObjectivePanel = objectiveVisible || objectivePanelOpen;
-  const gameplayPaused = paused || objectivePanelOpen || gameOver;
-
-  useEffect(() => {
-    const id = window.setTimeout(() => setObjectiveVisible(false), OBJECTIVE_INTRO_MS);
-    return () => window.clearTimeout(id);
-  }, []);
+  const gameplayPaused = paused || gameOver;
 
   useEffect(() => {
     if (!floorSplash) return;
@@ -237,21 +228,10 @@ export function GameView() {
     else scene.resume("HousePreview");
   }, [gameplayPaused]);
 
-  const exitLine = isTopFloor
-    ? "escape through the window on this top floor."
-    : `reach the stairs up to Floor ${floor + 1}.`;
-  const objective = isMultiplayer
-    ? `Co-op heist (Floor ${floor} of ${floorTotal}): collect all $ valuables, search cabinets for a chest key, then ${exitLine}`
-    : `Solo heist (Floor ${floor} of ${floorTotal}): collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, then ${exitLine}`;
-
   return (
     <div className="game">
       <div className="game__panel">
         <HUD
-          objective={objective}
-          showObjectivePanel={showObjectivePanel}
-          objectivePanelActive={objectivePanelOpen}
-          onObjectiveToggle={() => setObjectivePanelOpen((open) => !open)}
           timeLeftMs={timeLeftMs}
           cashFound={preview.cashFound}
           cashTotal={preview.cashTotal}
