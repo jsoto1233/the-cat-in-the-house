@@ -16,7 +16,6 @@ export type Screen =
   | "menu"
   | "lobby"
   | "game"
-  | "settings"
   | "credits"
   | "end";
 

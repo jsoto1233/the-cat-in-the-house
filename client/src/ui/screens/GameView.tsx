@@ -291,7 +291,6 @@ export function GameView() {
           <PauseOverlay
             open={paused}
             onResume={() => setPaused(false)}
-            onSettings={() => navigate("settings")}
             onLeave={leaveToMenu}
           />
         </div>

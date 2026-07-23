@@ -4,7 +4,6 @@ import { Button } from "../components/Button";
 
 export function MainMenu() {
   const {
-    navigate,
     connected,
     playerName,
     setPlayerName,
@@ -130,9 +129,6 @@ export function MainMenu() {
               </Button>
               <Button variant="secondary" onClick={() => setJoining(true)}>
                 Join lobby
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("settings")}>
-                Settings
               </Button>
             </div>
           )}
