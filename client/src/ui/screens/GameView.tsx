@@ -165,9 +165,28 @@ export function GameView() {
           g.registry.set("getTimeLeftMs", () => timeLeftRef.current);
           g.registry.set(
             "onMove",
-            mp ? (x: number, y: number) => client.socket.sendMove(x, y) : undefined
+            mp
+              ? (() => {
+                  let lastSentAt = 0;
+                  let lastX = Number.NaN;
+                  let lastY = Number.NaN;
+                  return (x: number, y: number) => {
+                    const now = performance.now();
+                    const moved = Number.isNaN(lastX) || Math.hypot(x - lastX, y - lastY) >= 1.5;
+                    if (!moved && now - lastSentAt < 33) return;
+                    lastSentAt = now;
+                    lastX = x;
+                    lastY = y;
+                    client.socket.sendMove(x, y);
+                  };
+                })()
+              : undefined
           );
           g.registry.set("onInteract", mp ? () => client.socket.sendInteract() : undefined);
+          g.registry.set(
+            "onCoinPickup",
+            mp && !host ? (coinIndex: number) => client.socket.sendCoinPickup(coinIndex) : undefined
+          );
           g.registry.set("onHostSync", (state: GameSyncState) => client.socket.sendGameState(state));
           g.registry.set("onMatchOver", (outcome: string) => client.socket.sendGameOver(outcome));
           g.registry.set(

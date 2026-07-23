@@ -171,7 +171,12 @@ export function playerColorCss(index: number): string {
 export const CAT_SPAWN = { x: 440, y: 150 };
 
 export const PLAYER_SPEED = 165;
-export const PICKUP_RADIUS = 26;
+export const PLAYER_BODY_RADIUS = 12;
+export const COIN_PICKUP_RADIUS = 14;
+/** Edge-to-edge overlap between player body and coin pickup circle. */
+export const PICKUP_RADIUS = PLAYER_BODY_RADIUS + COIN_PICKUP_RADIUS;
+/** Extra slack when the host validates a remote player's coin pickup over the network. */
+export const REMOTE_PICKUP_BUFFER = 12;
 export const INTERACT_RADIUS = 34;
 export const CATCH_RADIUS = 24;
 export const INVULN_SECONDS = 1.6;

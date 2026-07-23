@@ -158,7 +158,7 @@ io.on("connection", (socket) => {
     if (!room?.inGame || !player) return;
     player.x = x;
     player.y = y;
-    io.in(room.code).emit("player_move", { id: socket.id, x, y });
+    socket.to(room.code).emit("player_move", { id: socket.id, x, y });
   });
 
   socket.on("player_interact", () => {
@@ -182,6 +182,12 @@ io.on("connection", (socket) => {
     if (!room?.inGame || socket.id !== room.hostId) return;
     io.to(room.code).emit("game_over", { outcome });
     room.inGame = false;
+  });
+
+  socket.on("coin_pickup", ({ coinIndex }) => {
+    const room = getRoom(socket);
+    if (!room?.inGame) return;
+    io.to(room.hostId).emit("coin_pickup", { id: socket.id, coinIndex: Number(coinIndex) });
   });
 
   socket.on("return_to_lobby", () => {
