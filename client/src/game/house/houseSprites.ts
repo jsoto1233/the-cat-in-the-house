@@ -176,14 +176,19 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
     drawDoor(scene, gapX, wallY, 46, 14);
   });
 
-  // Exit caption inside the exit room.
+  // Exit caption. The window sits on the top wall, so its label goes just BELOW
+  // the marker (otherwise it renders on top of the window graphic); the door and
+  // stairs captions stay near the top of their room where they never overlap.
   const exitRoom = layout.rooms.find((r) => r.key === layout.exit.roomKey);
   if (exitRoom) {
+    const isWindow = layout.exit.type === "window";
+    const capX = isWindow ? layout.exit.x : exitRoom.x + exitRoom.w / 2;
+    const capY = isWindow ? layout.exit.y + 44 : exitRoom.y + 22;
     scene.add
-      .text(exitRoom.x + exitRoom.w / 2, exitRoom.y + 22, exitCaption(layout.exit.type), {
+      .text(capX, capY, exitCaption(layout.exit.type), {
         fontFamily: "Inter, sans-serif",
         fontSize: "12px",
-        color: layout.exit.type === "window" ? "#7fc0ff" : "#8a8690",
+        color: isWindow ? "#7fc0ff" : "#8a8690",
         align: "center"
       })
       .setOrigin(0.5)
