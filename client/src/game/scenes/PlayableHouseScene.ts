@@ -10,7 +10,9 @@ import {
   INVULN_SECONDS,
   LIVES_TOTAL,
   PALETTE,
-  PICKUP_RADIUS,
+  PLAYER_BODY_RADIUS,
+  COIN_PICKUP_RADIUS,
+  REMOTE_PICKUP_BUFFER,
   PLAYER_COLORS,
   PLAYER_SPAWN,
   PLAYER_SPAWNS,
@@ -41,6 +43,17 @@ import {
 
 export type { MatchOutcome, PreviewDifficulty, PreviewMood, PreviewState } from "../house/houseLayout";
 
+type RemotePos = {
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  alive: boolean;
+};
+
+const HOST_SYNC_MS = 33;
+const CAT_RECONCILE_SNAP_PX = 120;
+
 export class PlayableHouseScene extends Phaser.Scene {
   private difficulty: PreviewDifficulty = "normal";
   private multiplayer = false;
@@ -48,12 +61,17 @@ export class PlayableHouseScene extends Phaser.Scene {
   private localId = "p1";
   private playerIds: string[] = ["p1"];
   private remotePlayers = new Map<string, Phaser.GameObjects.Container>();
-  private remotePositions = new Map<string, { x: number; y: number; alive: boolean }>();
+  private remotePositions = new Map<string, RemotePos>();
+  private pendingCoinPickups = new Set<number>();
   private syncTimer = 0;
   private onMove?: (x: number, y: number) => void;
   private onInteract?: () => void;
+  private onCoinPickup?: (coinIndex: number) => void;
   private onHostSync?: (state: Record<string, unknown>) => void;
   private getTimeLeftMs?: () => number;
+  private catHostX = 0;
+  private catHostY = 0;
+  private catHostSynced = false;
 
   private collisionMap = createHouseCollisionMap();
   private layout: FloorLayout = getFloorLayout(1);
@@ -107,6 +125,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerIds = this.registry.get("playerIds") ?? [this.localId];
     this.onMove = this.registry.get("onMove");
     this.onInteract = this.registry.get("onInteract");
+    this.onCoinPickup = this.registry.get("onCoinPickup");
     this.onHostSync = this.registry.get("onHostSync");
     this.getTimeLeftMs = this.registry.get("getTimeLeftMs");
 
@@ -147,6 +166,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
     this.setupCat();
+    this.catHostX = this.cat.x;
+    this.catHostY = this.cat.y;
 
     this.playerContainer.setPosition(this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
@@ -173,9 +194,11 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.tickInvuln(dt);
       if (this.isPlayerAlive(this.localId)) {
         this.movePlayer(dt);
+        this.checkLocalPickups();
         this.checkInteractInputRemote();
         this.updateInteractPrompt();
       }
+      this.updateClientCat(delta);
       this.syncRemoteSprites();
       this.updateInvulnVisual();
       return;
@@ -206,18 +229,45 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     if (this.multiplayer && this.isHost) {
       this.syncTimer += delta;
-      if (this.syncTimer >= 50) {
+      if (this.syncTimer >= HOST_SYNC_MS) {
         this.syncTimer = 0;
-        this.onHostSync?.(this.buildSyncState());
+        this.pushHostSync();
       }
     }
+  }
+
+  handleRemoteCoinPickup(playerId: string, coinIndex: number) {
+    if (coinIndex < 0 || coinIndex >= this.money.length) return;
+    const coin = this.money[coinIndex];
+    if (!coin || coin.collected) {
+      this.pushHostSync();
+      return;
+    }
+    const pos = this.getPlayerPosition(playerId);
+    if (!pos || !this.isPlayerAlive(playerId)) return;
+    const buffer = playerId === this.localId ? 0 : REMOTE_PICKUP_BUFFER;
+    if (!this.overlapsPickup(pos.x, pos.y, coin.x, coin.y, buffer)) return;
+    this.collectCoin(coinIndex, playerId, true);
   }
 
   setRemotePosition(id: string, x: number, y: number) {
     if (id === this.localId) return;
     const alive = this.isPlayerAlive(id);
-    this.remotePositions.set(id, { x, y, alive });
-    this.ensureRemotePlayer(id).setPosition(x, y);
+    let pos = this.remotePositions.get(id);
+    if (!pos) {
+      pos = { x, y, tx: x, ty: y, alive };
+      this.remotePositions.set(id, pos);
+    } else {
+      pos.tx = x;
+      pos.ty = y;
+      pos.alive = alive;
+      const jump = Phaser.Math.Distance.Between(pos.x, pos.y, x, y);
+      if (jump > 120) {
+        pos.x = x;
+        pos.y = y;
+      }
+    }
+    this.ensureRemotePlayer(id).setPosition(pos.x, pos.y);
   }
 
   getPlayerPosition(id: string): { x: number; y: number } | null {
@@ -241,7 +291,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }) {
     if (state.floor !== undefined && state.floor !== this.currentFloor) return;
 
-    this.cashFound = state.cashFound;
+    this.cashFound = Math.max(state.cashFound, this.cashFound);
     this.hasKey = !!state.hasKey;
     for (const [id, lives] of Object.entries(state.playerLives)) {
       this.playerLives.set(id, lives);
@@ -252,19 +302,37 @@ export class PlayableHouseScene extends Phaser.Scene {
         m.collected = true;
         m.container.destroy();
       }
+      this.pendingCoinPickups.delete(idx);
     });
     (state.openedInteractables ?? []).forEach((id) => {
       const item = this.interactables.find((i) => i.def.id === id);
       if (item && !item.opened) applyOpenedVisual(item);
     });
-    this.cat.x = state.cat.x;
-    this.cat.y = state.cat.y;
-    this.catContainer.setPosition(state.cat.x, state.cat.y);
+    this.catHostX = state.cat.x;
+    this.catHostY = state.cat.y;
+    this.catHostSynced = true;
     this.lastMood = state.cat.mood as PreviewMood;
+    if (!this.isHost) {
+      const dx = this.catHostX - this.cat.x;
+      const dy = this.catHostY - this.cat.y;
+      if (dx * dx + dy * dy > CAT_RECONCILE_SNAP_PX * CAT_RECONCILE_SNAP_PX) {
+        this.cat.x = this.catHostX;
+        this.cat.y = this.catHostY;
+      }
+    } else {
+      this.cat.x = state.cat.x;
+      this.cat.y = state.cat.y;
+      this.catContainer.setPosition(state.cat.x, state.cat.y);
+    }
     for (const [id, p] of Object.entries(state.players)) {
       if (id === this.localId) continue;
-      this.remotePositions.set(id, { x: p.x, y: p.y, alive: p.alive });
-      this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
+      const existing = this.remotePositions.get(id);
+      if (existing) {
+        existing.alive = p.alive;
+      } else {
+        this.remotePositions.set(id, { x: p.x, y: p.y, tx: p.x, ty: p.y, alive: p.alive });
+        this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
+      }
     }
     this.emitPreview();
     if (state.matchEnded && state.outcome) this.endMatch(state.outcome);
@@ -365,10 +433,76 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private syncRemoteSprites() {
+    const blend = Math.min(1, (this.game.loop.delta / 100) * 2.5);
     for (const [id, container] of this.remotePlayers) {
       const pos = this.remotePositions.get(id);
-      if (pos) container.setPosition(pos.x, pos.y);
+      if (!pos) continue;
+      pos.x = Phaser.Math.Linear(pos.x, pos.tx, blend);
+      pos.y = Phaser.Math.Linear(pos.y, pos.ty, blend);
+      container.setPosition(pos.x, pos.y);
+      container.setVisible(pos.alive);
     }
+  }
+
+  private pushHostSync() {
+    if (!this.multiplayer || !this.isHost) return;
+    this.onHostSync?.(this.buildSyncState());
+  }
+
+  private overlapsPickup(px: number, py: number, cx: number, cy: number, extraRadius = 0) {
+    const dx = px - cx;
+    const dy = py - cy;
+    const r = PLAYER_BODY_RADIUS + COIN_PICKUP_RADIUS + extraRadius;
+    return dx * dx + dy * dy <= r * r;
+  }
+
+  private collectCoin(index: number, playerId: string, authoritative: boolean) {
+    const coin = this.money[index];
+    if (!coin || coin.collected) return false;
+    coin.collected = true;
+    coin.container.destroy();
+    this.cashFound = Math.min(CASH_TOTAL, this.cashFound + 1);
+    if (authoritative) {
+      this.cat.onClueCollected(playerId, `cash_${this.cashFound}`);
+      this.pushHostSync();
+    }
+    this.emitPreview();
+    return true;
+  }
+
+  private checkLocalPickups() {
+    for (let i = 0; i < this.money.length; i++) {
+      const coin = this.money[i];
+      if (coin.collected || this.pendingCoinPickups.has(i)) continue;
+      if (!this.overlapsPickup(this.playerX, this.playerY, coin.x, coin.y)) continue;
+      if (!this.collectCoin(i, this.localId, false)) continue;
+      this.pendingCoinPickups.add(i);
+      this.onCoinPickup?.(i);
+      break;
+    }
+  }
+
+  private updateClientCat(delta: number) {
+    const uncollectedLoot = this.money
+      .filter((m) => !m.collected)
+      .map((m) => ({ x: m.x, y: m.y }));
+    this.cat.setHuntContext(this.cashFound, uncollectedLoot);
+    this.cat.update(delta, this.getAllPlayerStates());
+
+    if (this.catHostSynced) {
+      const dx = this.catHostX - this.cat.x;
+      const dy = this.catHostY - this.cat.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > CAT_RECONCILE_SNAP_PX * CAT_RECONCILE_SNAP_PX) {
+        this.cat.x = this.catHostX;
+        this.cat.y = this.catHostY;
+      } else if (distSq > 16) {
+        this.cat.x += dx * 0.18;
+        this.cat.y += dy * 0.18;
+      }
+    }
+
+    this.catContainer.setPosition(this.cat.x, this.cat.y);
   }
 
   private buildSyncState() {
@@ -407,6 +541,8 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.remotePositions.set(id, {
         x: spawn.x,
         y: spawn.y,
+        tx: spawn.x,
+        ty: spawn.y,
         alive: this.isPlayerAlive(id)
       });
     });
@@ -473,6 +609,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
 
     this.emitPreview();
+    if (this.multiplayer && this.isHost) this.pushHostSync();
   }
 
   private grantCash(amount: number, playerId: string, sourceId: string) {
@@ -497,18 +634,14 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private checkPickups() {
-    for (const m of this.money) {
-      if (m.collected) continue;
+    for (let i = 0; i < this.money.length; i++) {
+      const coin = this.money[i];
+      if (coin.collected) continue;
       for (const p of this.getAllPlayerStates()) {
         if (!p.alive) continue;
-        const dx = p.x - m.x;
-        const dy = p.y - m.y;
-        if (Math.sqrt(dx * dx + dy * dy) > PICKUP_RADIUS) continue;
-        m.collected = true;
-        m.container.destroy();
-        this.cashFound = Math.min(CASH_TOTAL, this.cashFound + 1);
-        this.cat.onClueCollected(p.id, `cash_${this.cashFound}`);
-        this.emitPreview();
+        const buffer = p.id === this.localId ? 0 : REMOTE_PICKUP_BUFFER;
+        if (!this.overlapsPickup(p.x, p.y, coin.x, coin.y, buffer)) continue;
+        this.collectCoin(i, p.id, true);
         break;
       }
     }
@@ -536,7 +669,13 @@ export class PlayableHouseScene extends Phaser.Scene {
         } else {
           const idx = this.playerIds.indexOf(p.id);
           const spawn = PLAYER_SPAWNS[idx] ?? PLAYER_SPAWN;
-          this.remotePositions.set(p.id, { x: spawn.x, y: spawn.y, alive: true });
+          this.remotePositions.set(p.id, {
+            x: spawn.x,
+            y: spawn.y,
+            tx: spawn.x,
+            ty: spawn.y,
+            alive: true
+          });
           this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
         }
       } else if (p.id !== this.localId) {
@@ -546,6 +685,8 @@ export class PlayableHouseScene extends Phaser.Scene {
 
       this.cat.x = this.catSpawnPos.x;
       this.cat.y = this.catSpawnPos.y;
+      this.catHostX = this.cat.x;
+      this.catHostY = this.cat.y;
       this.catContainer.setPosition(this.cat.x, this.cat.y);
       this.cat.calm(25);
 
@@ -553,6 +694,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       if (!anyoneLeft) {
         this.endMatch("caught");
       }
+      this.pushHostSync();
       return;
     }
   }
