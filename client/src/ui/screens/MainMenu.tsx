@@ -23,6 +23,49 @@ export function MainMenu() {
 
   return (
     <div className="screen">
+      <div className="menu-decor" aria-hidden="true">
+        <div className="menu-decor__side menu-decor__side--left">
+          <div className="claws">
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="cat-eyes cat-eyes--high">
+            <span />
+            <span />
+          </div>
+          <div className="cat-eyes cat-eyes--low">
+            <span />
+            <span />
+          </div>
+        </div>
+        <div className="menu-decor__side menu-decor__side--right">
+          <div className="claws">
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="cat-eyes cat-eyes--high">
+            <span />
+            <span />
+          </div>
+          <div className="cat-eyes cat-eyes--low">
+            <span />
+            <span />
+          </div>
+        </div>
+        {Array.from({ length: 16 }).map((_, i) => (
+          <span
+            key={i}
+            className="mote"
+            style={{
+              left: `${(i * 61 + 7) % 100}%`,
+              animationDelay: `${(i * 0.9) % 11}s`,
+              animationDuration: `${10 + (i % 6) * 2}s`
+            }}
+          />
+        ))}
+      </div>
       <div className="screen__inner">
         <div className="brand brand--bleed">
           <h1 className="brand__title brand__title--bleed">The Cat in the House</h1>

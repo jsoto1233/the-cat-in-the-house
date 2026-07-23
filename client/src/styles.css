@@ -1129,3 +1129,172 @@ input {
   gap: 12px;
   padding: 16px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Main-menu atmosphere: glowing cat eyes, blood-streak claws, and     */
+/* drifting embers filling the empty sides. Purely decorative — sits   */
+/* behind the menu and never captures clicks.                          */
+/* ------------------------------------------------------------------ */
+.screen {
+  position: relative;
+}
+.screen__inner {
+  position: relative;
+  z-index: 1;
+}
+
+.menu-decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.menu-decor__side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26%;
+}
+.menu-decor__side--left {
+  left: 0;
+}
+.menu-decor__side--right {
+  right: 0;
+}
+
+/* Glowing cat eyes peering out of the shadows. */
+.cat-eyes {
+  position: absolute;
+  display: flex;
+  gap: 11px;
+  opacity: 0;
+  animation: eye-peek 10s ease-in-out infinite;
+}
+.cat-eyes span {
+  position: relative;
+  width: 13px;
+  height: 17px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #ffe66a, #d6a800 58%, #6b5600);
+  box-shadow: 0 0 10px 3px rgba(255, 210, 60, 0.55),
+    0 0 26px 10px rgba(255, 180, 40, 0.22);
+}
+.cat-eyes span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.6px;
+  height: 72%;
+  transform: translate(-50%, -50%);
+  background: #170f00;
+  border-radius: 45%;
+}
+.menu-decor__side--left .cat-eyes {
+  left: 15%;
+}
+.menu-decor__side--right .cat-eyes {
+  right: 15%;
+}
+.cat-eyes--high {
+  top: 24%;
+}
+.cat-eyes--low {
+  top: 64%;
+}
+.menu-decor__side--right .cat-eyes--high {
+  top: 40%;
+  animation-delay: 3.6s;
+}
+.menu-decor__side--left .cat-eyes--low {
+  animation-delay: 5.4s;
+}
+.menu-decor__side--right .cat-eyes--low {
+  top: 78%;
+  animation-delay: 1.8s;
+}
+
+@keyframes eye-peek {
+  0%, 16% { opacity: 0; }
+  22% { opacity: 0.95; }
+  30% { opacity: 0.5; } /* a slow blink */
+  38% { opacity: 0.95; }
+  48%, 100% { opacity: 0; }
+}
+
+/* Blood-streak claw marks down the sides. */
+.claws {
+  position: absolute;
+  top: 42%;
+  width: 44px;
+  height: 130px;
+  opacity: 0.5;
+}
+.menu-decor__side--left .claws {
+  left: 9%;
+  transform: rotate(9deg);
+}
+.menu-decor__side--right .claws {
+  right: 9%;
+  transform: scaleX(-1) rotate(9deg);
+}
+.claws i {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 4%,
+    rgba(224, 41, 74, 0.75) 34%,
+    rgba(125, 15, 34, 0.55) 82%,
+    transparent
+  );
+  border-radius: 40%;
+  box-shadow: 0 0 6px rgba(224, 41, 74, 0.4);
+}
+.claws i:nth-child(1) {
+  left: 0;
+  height: 82%;
+}
+.claws i:nth-child(2) {
+  left: 16px;
+  height: 100%;
+}
+.claws i:nth-child(3) {
+  left: 32px;
+  height: 88%;
+}
+
+/* Drifting embers rising through the dark. */
+.mote {
+  position: absolute;
+  bottom: -12px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(224, 70, 90, 0.55);
+  box-shadow: 0 0 6px rgba(224, 70, 90, 0.45);
+  opacity: 0;
+  animation-name: mote-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes mote-drift {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 0.6; }
+  88% { opacity: 0.4; }
+  100% { transform: translate(16px, -108vh); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-eyes {
+    animation: none;
+    opacity: 0.55;
+  }
+  .mote {
+    display: none;
+  }
+}
