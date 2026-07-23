@@ -124,7 +124,7 @@ export const FLOORS: FloorLayout[] = [
     ],
     playerSpawn: SPAWN,
     catSpawn: { x: 290, y: 130 },
-    exit: { type: "door", x: 690, y: 430, roomKey: "mud" }
+    exit: { type: "door", x: 756, y: 455, roomKey: "mud" }
   },
   {
     floor: 2,
@@ -192,7 +192,7 @@ export const FLOORS: FloorLayout[] = [
     ],
     playerSpawn: SPAWN,
     catSpawn: { x: 410, y: 170 },
-    exit: { type: "stairs", x: 670, y: 130, roomKey: "nursery" }
+    exit: { type: "stairs", x: 748, y: 145, roomKey: "nursery" }
   },
   {
     floor: 3,
@@ -258,7 +258,7 @@ export const FLOORS: FloorLayout[] = [
     ],
     playerSpawn: SPAWN,
     catSpawn: { x: 590, y: 130 },
-    exit: { type: "stairs", x: 130, y: 470, roomKey: "cellar" }
+    exit: { type: "stairs", x: 52, y: 470, roomKey: "cellar" }
   },
   {
     floor: 4,
@@ -329,7 +329,7 @@ export const FLOORS: FloorLayout[] = [
     ],
     playerSpawn: SPAWN,
     catSpawn: { x: 430, y: 170 },
-    exit: { type: "window", x: 430, y: 70, roomKey: "attic" }
+    exit: { type: "window", x: 430, y: 50, roomKey: "attic" }
   }
 ];
 
