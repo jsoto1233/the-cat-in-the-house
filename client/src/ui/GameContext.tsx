@@ -73,6 +73,7 @@ interface GameContextValue {
   startGame: () => void;
   difficulty: Difficulty;
   startSinglePlayer: (difficulty?: Difficulty) => void;
+  returnToLobby: () => void;
   leaveToMenu: () => void;
   matchTimeLeftMs: number | null;
   setMatchTimeLeftMs: (ms: number | null) => void;
@@ -233,6 +234,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameSessionKey((k) => k + 1);
   }, []);
 
+  const returnToLobby = useCallback(() => {
+    client.detachScene();
+    setOutcome(null);
+    setMatchTimeLeftMs(null);
+    setFloor(1);
+    setPlayerLives({});
+    setHostId("");
+    setGamePlayerIds([]);
+    setScreen("lobby");
+    client.socket.returnToLobby();
+  }, [client]);
+
   const leaveToMenu = useCallback(() => {
     client.socket.leaveRoom();
     client.unmountGame();
@@ -268,6 +281,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
+      returnToLobby,
       leaveToMenu,
       matchTimeLeftMs,
       setMatchTimeLeftMs,
@@ -300,6 +314,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
+      returnToLobby,
       leaveToMenu,
       matchTimeLeftMs,
       setMatchTimeLeftMs,

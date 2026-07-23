@@ -128,6 +128,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     const spawnIdx = Math.max(0, this.playerIds.indexOf(this.localId));
     const spawn = this.multiplayer ? PLAYER_SPAWNS[spawnIdx] ?? PLAYER_SPAWN : PLAYER_SPAWN;
+    const playerColor = PLAYER_COLORS[spawnIdx] ?? PALETTE.player;
     this.playerX = spawn.x;
     this.playerY = spawn.y;
 
@@ -139,7 +140,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.collisionMap = createFloorCollisionMap(this.layout);
     this.money = spawnMoney(this, this.layout);
     this.interactables = spawnInteractables(this, this.layout);
-    this.playerContainer = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y);
+    this.playerContainer = buildPlayer(this, spawn.x, spawn.y, playerColor);
     this.catContainer = buildCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
     ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
 

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
+import { playerColorCss } from "../../game/house/houseLayout";
 import type { PlayerState } from "../../types";
 
 const MAX_PLAYERS = 4;
@@ -79,6 +80,11 @@ export function Lobby() {
               return (
                 <li key={player.id} className="slot">
                   <span className="slot__name">
+                    <span
+                      className="slot__color"
+                      style={{ backgroundColor: playerColorCss(i) }}
+                      aria-hidden="true"
+                    />
                     {player.name}
                     {player.id === room?.hostId && <span className="tag">Host</span>}
                     {isYou && <span className="tag">You</span>}

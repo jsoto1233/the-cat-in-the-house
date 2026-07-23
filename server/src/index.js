@@ -184,6 +184,16 @@ io.on("connection", (socket) => {
     room.inGame = false;
   });
 
+  socket.on("return_to_lobby", () => {
+    const room = getRoom(socket);
+    if (!room || room.inGame) return;
+    if (!room.players.has(socket.id)) return;
+    for (const p of room.players.values()) {
+      p.ready = false;
+    }
+    broadcastRoom(room);
+  });
+
   socket.on("advance_floor", (payload) => {
     const room = getRoom(socket);
     if (!room?.inGame || socket.id !== room.hostId) return;

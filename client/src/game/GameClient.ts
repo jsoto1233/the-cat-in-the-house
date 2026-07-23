@@ -94,6 +94,10 @@ class GameSocket {
   sendAdvanceFloor(payload: AdvanceFloorPayload): void {
     this.ioSocket.emit("advance_floor", payload);
   }
+
+  returnToLobby(): void {
+    this.ioSocket.emit("return_to_lobby");
+  }
 }
 
 export class GameClient {

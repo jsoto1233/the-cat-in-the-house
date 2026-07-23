@@ -162,7 +162,12 @@ export const PLAYER_SPAWNS = [
   { x: 380, y: 320 },
   { x: 420, y: 320 }
 ];
-export const PLAYER_COLORS = [0x4aa3df, 0x4adf7a, 0xdf4a9f, 0xdfae4a];
+export const PLAYER_COLORS = [0x4aa3df, 0x4adf7a, 0xdf4a4a, 0xdfae4a];
+
+export function playerColorCss(index: number): string {
+  const color = PLAYER_COLORS[index] ?? PALETTE.player;
+  return `#${color.toString(16).padStart(6, "0")}`;
+}
 export const CAT_SPAWN = { x: 440, y: 150 };
 
 export const PLAYER_SPEED = 165;
