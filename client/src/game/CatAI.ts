@@ -80,7 +80,9 @@ const TELEPORT = {
   PICK_ATTEMPTS: 32,
   NEAR_PLAYER_MIN: 48,
   NEAR_PLAYER_MAX: 88,
-  MIN_RELOC_DIST: 100
+  MIN_RELOC_DIST: 100,
+  SLOWDOWN_DURATION: 0.45,
+  SLOWDOWN_FACTOR: 0.35
 };
 
 const AGGRESSION_DECAY_RATE = 1.5;
@@ -176,6 +178,7 @@ export class CatAI {
   private pauseTimer = 0;
   private teleportTimer = this.rollTeleportInterval();
   private teleportEnabled: boolean;
+  private teleportSlowdownTimer = 0;
 
   private listeners: Record<string, Listener[]> = {};
   private elapsed = 0;
@@ -238,6 +241,7 @@ export class CatAI {
     }
 
     this.tickAggression(dt);
+    this.tickTeleportSlowdown(dt);
     if (this.isHunting) this.aggression = Math.max(this.aggression, this.threshold("ALERT_START"));
     this.updateState();
     if (this.awake) this.maybeTeleport(dt, players);
@@ -268,6 +272,7 @@ export class CatAI {
     this.patrolRoomKey = null;
     this.pauseTimer = 0;
     this.teleportTimer = this.rollTeleportInterval();
+    this.teleportSlowdownTimer = 0;
     this.elapsed = 0;
     this.snapToWalkable();
   }
@@ -463,6 +468,7 @@ export class CatAI {
     this.path = [];
     this.pathGoal = null;
     this.pauseTimer = 0.35;
+    this.triggerTeleportSlowdown();
     this.emit("cat_teleported", {
       catId: this.catId,
       from,
@@ -495,6 +501,20 @@ export class CatAI {
 
   private rollTeleportInterval(): number {
     return TELEPORT.INTERVAL_MIN + Math.random() * (TELEPORT.INTERVAL_MAX - TELEPORT.INTERVAL_MIN);
+  }
+
+  private triggerTeleportSlowdown(duration = TELEPORT.SLOWDOWN_DURATION): void {
+    this.teleportSlowdownTimer = Math.max(this.teleportSlowdownTimer, duration);
+  }
+
+  private tickTeleportSlowdown(dt: number): void {
+    if (this.teleportSlowdownTimer > 0) {
+      this.teleportSlowdownTimer = Math.max(0, this.teleportSlowdownTimer - dt);
+    }
+  }
+
+  private effectiveSpeed(): number {
+    return this.teleportSlowdownTimer > 0 ? this.speed * TELEPORT.SLOWDOWN_FACTOR : this.speed;
   }
 
   private huntDelay(): number {
@@ -692,7 +712,7 @@ export class CatAI {
 
     const moodMult = MOOD_SPEED_MULT[this.mood] ?? 1;
     const factor = 1 - slowdown;
-    const move = Math.min(this.speed * dt * moodMult * factor, MAX_STEP_PX, len);
+    const move = Math.min(this.effectiveSpeed() * dt * moodMult * factor, MAX_STEP_PX, len);
     const toX = this.x + (dx / len) * move;
     const toY = this.y + (dy / len) * move;
 

@@ -62,6 +62,8 @@ const TELEPORT = {
   NEAR_PLAYER_MIN:    48,
   NEAR_PLAYER_MAX:    88,
   MIN_RELOC_DIST:     100,
+  SLOWDOWN_DURATION:  0.45,
+  SLOWDOWN_FACTOR:    0.35,
 };
 
 const AGGRESSION_DECAY_RATE = 1.5;
@@ -160,6 +162,7 @@ export class CatAI {
 
     this._teleportTimer = this._rollTeleportInterval();
     this._teleportEnabled = !!this._profile.enableTeleport;
+    this._teleportSlowdownTimer = 0;
 
     this._listeners = {};
     this._elapsed = 0;
@@ -180,6 +183,7 @@ export class CatAI {
     }
 
     this._tickAggression(dt);
+    this._tickTeleportSlowdown(dt);
     this._updateState();
     if (this.awake) this._maybeTeleport(dt, players);
     this._move(dt, players);
@@ -200,6 +204,7 @@ export class CatAI {
     this._detourTarget = null;
     this._detourTimer = 0;
     this._teleportTimer = this._rollTeleportInterval();
+    this._teleportSlowdownTimer = 0;
     this.aggression = 0;
     this.pendingTasks.clear();
   }
@@ -427,6 +432,7 @@ export class CatAI {
     this._roamTarget = null;
     this._detourTarget = null;
     this._pauseTimer = 0.35;
+    this._triggerTeleportSlowdown();
 
     this._emit('cat_teleported', {
       catId: this.catId,
@@ -439,6 +445,23 @@ export class CatAI {
 
   _rollTeleportInterval() {
     return TELEPORT.INTERVAL_MIN + Math.random() * (TELEPORT.INTERVAL_MAX - TELEPORT.INTERVAL_MIN);
+  }
+
+  _triggerTeleportSlowdown(duration = TELEPORT.SLOWDOWN_DURATION) {
+    this._teleportSlowdownTimer = Math.max(this._teleportSlowdownTimer, duration);
+  }
+
+  _tickTeleportSlowdown(dt) {
+    if (this._teleportSlowdownTimer > 0) {
+      this._teleportSlowdownTimer = Math.max(0, this._teleportSlowdownTimer - dt);
+    }
+  }
+
+  _effectiveSpeed() {
+    if (this._teleportSlowdownTimer > 0) {
+      return this.speed * TELEPORT.SLOWDOWN_FACTOR;
+    }
+    return this.speed;
   }
 
   _currentRoomKey() {
@@ -621,7 +644,7 @@ export class CatAI {
     if (len === 0) return;
 
     const moodMult = MOOD_SPEED_MULT[this.mood] ?? 1;
-    const move = Math.min(this.speed * dt * moodMult, MAX_STEP_PX, len);
+    const move = Math.min(this._effectiveSpeed() * dt * moodMult, MAX_STEP_PX, len);
     const toX = this.x + (dx / len) * move;
     const toY = this.y + (dy / len) * move;
 

@@ -220,6 +220,7 @@ export class GameLogic {
       cat._collisionMap = collisionMap;
       cat._path = [];
       cat._pathGoal = null;
+      cat._snapToWalkable();
     }
   }
 

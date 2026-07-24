@@ -65,10 +65,23 @@ export class CollisionMap {
    * Tries the full move; if blocked, tries X-only then Y-only.
    */
   resolveMove(fromX: number, fromY: number, toX: number, toY: number): Waypoint {
-    if (this.isWalkable(toX, toY)) return { x: toX, y: toY };
-    if (this.isWalkable(toX, fromY)) return { x: toX, y: fromY };
-    if (this.isWalkable(fromX, toY)) return { x: fromX, y: toY };
-    return { x: fromX, y: fromY };
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const steps = Math.max(2, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / Math.max(this.tileW, this.tileH)));
+
+    let lastSafe: Waypoint = { x: fromX, y: fromY };
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const sampleX = fromX + dx * t;
+      const sampleY = fromY + dy * t;
+      if (this.isWalkable(sampleX, sampleY)) {
+        lastSafe = { x: sampleX, y: sampleY };
+      } else {
+        break;
+      }
+    }
+
+    return lastSafe;
   }
 
   /** Find the nearest walkable tile center within a search radius (in tiles). */
