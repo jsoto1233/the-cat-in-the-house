@@ -54,7 +54,7 @@ export function MainMenu() {
             <span />
           </div>
         </div>
-        {Array.from({ length: 16 }).map((_, i) => (
+        {Array.from({ length: 30 }).map((_, i) => (
           <span
             key={i}
             className="mote"

@@ -1168,60 +1168,72 @@ input {
 .cat-eyes {
   position: absolute;
   display: flex;
-  gap: 11px;
+  gap: 13px;
   opacity: 0;
-  animation: eye-peek 10s ease-in-out infinite;
+  animation: prowl 16s ease-in-out infinite;
 }
 .cat-eyes span {
   position: relative;
-  width: 13px;
-  height: 17px;
+  width: 18px;
+  height: 23px;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 38%, #ffe66a, #d6a800 58%, #6b5600);
-  box-shadow: 0 0 10px 3px rgba(255, 210, 60, 0.55),
-    0 0 26px 10px rgba(255, 180, 40, 0.22);
+  box-shadow: 0 0 14px 4px rgba(255, 210, 60, 0.55),
+    0 0 34px 12px rgba(255, 180, 40, 0.22);
 }
 .cat-eyes span::after {
   content: "";
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2.6px;
-  height: 72%;
+  width: 3.4px;
+  height: 74%;
   transform: translate(-50%, -50%);
   background: #170f00;
   border-radius: 45%;
 }
 .menu-decor__side--left .cat-eyes {
-  left: 15%;
+  left: 7%;
 }
 .menu-decor__side--right .cat-eyes {
-  right: 15%;
+  right: 7%;
 }
-.cat-eyes--high {
-  top: 24%;
-}
-.cat-eyes--low {
-  top: 64%;
-}
-.menu-decor__side--right .cat-eyes--high {
-  top: 40%;
-  animation-delay: 3.6s;
+/* Each pair prowls its own vertical band, so the cat seems to move around. */
+.menu-decor__side--left .cat-eyes--high {
+  top: 12%;
+  animation-duration: 15s;
 }
 .menu-decor__side--left .cat-eyes--low {
-  animation-delay: 5.4s;
+  top: 46%;
+  animation-duration: 17s;
+  animation-delay: 5s;
+  animation-direction: alternate;
+}
+.menu-decor__side--right .cat-eyes--high {
+  top: 20%;
+  animation-duration: 16s;
+  animation-delay: 2.5s;
+  animation-direction: alternate;
 }
 .menu-decor__side--right .cat-eyes--low {
-  top: 78%;
-  animation-delay: 1.8s;
+  top: 54%;
+  animation-duration: 18s;
+  animation-delay: 7s;
 }
 
-@keyframes eye-peek {
-  0%, 16% { opacity: 0; }
-  22% { opacity: 0.95; }
-  30% { opacity: 0.5; } /* a slow blink */
-  38% { opacity: 0.95; }
-  48%, 100% { opacity: 0; }
+/* Fade out, glide to a new spot in the dark, fade back in — the cat prowling. */
+@keyframes prowl {
+  0% { transform: translate(0, 0); opacity: 0; }
+  9% { opacity: 0.95; }
+  15% { opacity: 0.4; }
+  21% { opacity: 0.95; }
+  27% { opacity: 0; }
+  50% { transform: translate(34px, 150px); opacity: 0; }
+  56% { opacity: 0.95; }
+  62% { opacity: 0.4; }
+  68% { opacity: 0.95; }
+  74% { opacity: 0; }
+  100% { transform: translate(-14px, 300px); opacity: 0; }
 }
 
 /* Blood-streak claw marks down the sides. */
