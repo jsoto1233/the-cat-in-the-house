@@ -317,27 +317,35 @@ export function spawnInteractables(scene: Phaser.Scene, layout: FloorLayout): In
   });
 }
 
-function spawnMoneyMarker(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
-  // Dark contrast disc first: keeps the coin readable even on a light rug or
-  // furniture, so loot never gets lost against the background.
+// The loot is a mix of real valuables and a few gag items — the robbers grab
+// whatever's lying around. Every piece still counts as one unit of loot.
+const LOOT_GLYPHS = ["💎", "💍", "👑", "💰", "🏆", "📿", "💵", "🍫", "🦆", "🧀"];
+
+function spawnMoneyMarker(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  glyph: string
+): Phaser.GameObjects.Container {
+  // Dark contrast disc first: keeps loot readable even on a light rug or
+  // furniture, so it never gets lost against the background.
   const backing = scene.add.circle(0, 0, 21, 0x05050a, 0.55);
   const whiteRing = scene.add.circle(0, 0, 22, 0xffffff, 0.42);
   const halo = scene.add.circle(0, 0, 19, PALETTE.moneyGlow, 0.38);
   const borderRing = scene.add.circle(0, 0, 16, PALETTE.outline);
-  const coin = scene.add
-    .circle(0, 0, 14, PALETTE.moneyGold, 1)
-    .setStrokeStyle(3, PALETTE.outline, 1);
-  const shine = scene.add.circle(-4, -4, 6, PALETTE.moneyHighlight, 0.6);
-  const sign = scene.add
-    .text(0, 1, "$", {
-      fontFamily: "Inter, system-ui, sans-serif",
-      fontSize: "22px",
-      color: "#0a0a0f",
-      fontStyle: "bold"
+  // Neutral gold-rimmed token so any item (gem, chocolate…) reads as loot.
+  const disc = scene.add
+    .circle(0, 0, 15, 0x191922, 0.92)
+    .setStrokeStyle(2.5, PALETTE.moneyGold, 0.95);
+  const item = scene.add
+    .text(0, 0, glyph, {
+      fontFamily:
+        "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',system-ui,sans-serif",
+      fontSize: "21px"
     })
     .setOrigin(0.5);
   const container = scene.add
-    .container(x, y, [backing, whiteRing, halo, borderRing, coin, shine, sign])
+    .container(x, y, [backing, whiteRing, halo, borderRing, disc, item])
     .setDepth(6);
   scene.tweens.add({
     targets: halo,
@@ -359,12 +367,16 @@ function spawnMoneyMarker(scene: Phaser.Scene, x: number, y: number): Phaser.Gam
 }
 
 export function spawnMoney(scene: Phaser.Scene, layout: FloorLayout): MoneyMarker[] {
-  return layout.moneySpots.map((spot) => ({
-    x: spot.x,
-    y: spot.y,
-    container: spawnMoneyMarker(scene, spot.x, spot.y),
-    collected: false
-  }));
+  return layout.moneySpots.map((spot, i) => {
+    // Deterministic per spot + floor so the mix varies but stays consistent.
+    const glyph = LOOT_GLYPHS[(i + layout.floor) % LOOT_GLYPHS.length];
+    return {
+      x: spot.x,
+      y: spot.y,
+      container: spawnMoneyMarker(scene, spot.x, spot.y, glyph),
+      collected: false
+    };
+  });
 }
 
 export function buildPlayer(
