@@ -27,6 +27,7 @@ import {
   getFloorLayout,
   type FloorLayout
 } from "../house/floors";
+import { playCatchSound } from "../sfx";
 import {
   applyOpenedVisual,
   buildCat,
@@ -654,6 +655,8 @@ export class PlayableHouseScene extends Phaser.Scene {
       const dx = this.cat.x - p.x;
       const dy = this.cat.y - p.y;
       if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) continue;
+
+      playCatchSound(); // angry cat screech + victim's "oof"
 
       const remaining = Math.max(0, (this.playerLives.get(p.id) ?? LIVES_TOTAL) - 1);
       this.playerLives.set(p.id, remaining);
