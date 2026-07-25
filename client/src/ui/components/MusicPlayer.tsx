@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import musicUrl from "../../assets/halloween-chaser.mp3";
+import { useGame } from "../GameContext";
 
 const MUSIC_KEY = "cith.music";
 
@@ -32,9 +33,12 @@ export function MusicPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [prefs, setPrefs] = useState<MusicPrefs>(loadPrefs);
   const { volume, muted } = prefs;
+  const { screen } = useGame();
 
-  // Create the audio once. Browsers block autoplay-with-sound until the first
-  // user gesture, so we also (re)try play on the first pointer/key interaction.
+  // Create the audio once, loop it forever, and start it on the first user
+  // interaction (browsers block autoplay-with-sound until then). We listen in
+  // the capture phase across several gesture types so ANY first click/tap/key
+  // starts it — not only clicking the speaker.
   useEffect(() => {
     const audio = new Audio(musicUrl);
     audio.loop = true;
@@ -43,34 +47,47 @@ export function MusicPlayer() {
     audio.volume = stored.muted ? 0 : stored.volume;
     audioRef.current = audio;
 
-    const tryPlay = () => {
+    void audio.play().catch(() => {});
+
+    const unlock = () => {
       void audio.play().catch(() => {});
+      if (!audio.paused) {
+        window.removeEventListener("pointerdown", unlock, true);
+        window.removeEventListener("keydown", unlock, true);
+        window.removeEventListener("touchstart", unlock, true);
+      }
     };
-    tryPlay();
-    window.addEventListener("pointerdown", tryPlay);
-    window.addEventListener("keydown", tryPlay);
+    window.addEventListener("pointerdown", unlock, true);
+    window.addEventListener("keydown", unlock, true);
+    window.addEventListener("touchstart", unlock, true);
 
     return () => {
-      window.removeEventListener("pointerdown", tryPlay);
-      window.removeEventListener("keydown", tryPlay);
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
       audio.pause();
       audioRef.current = null;
     };
   }, []);
 
-  // Apply + persist volume/mute whenever they change.
+  // Apply + persist volume/mute. The track never pauses — muting just drops the
+  // volume to 0 — so it keeps looping continuously across every screen.
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.volume = muted ? 0 : volume;
-      if (audio.paused) void audio.play().catch(() => {});
-    }
+    if (audio) audio.volume = muted ? 0 : volume;
     try {
       localStorage.setItem(MUSIC_KEY, JSON.stringify(prefs));
     } catch {
       /* ignore */
     }
   }, [prefs, muted, volume]);
+
+  // Safety net: if the track ever gets paused, resume it on any screen change
+  // (entering the lobby or starting the game keeps the music alive + looping).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio && audio.paused) void audio.play().catch(() => {});
+  }, [screen]);
 
   const level = muted ? 0 : volume;
   const pct = Math.round(volume * 100);
