@@ -9,13 +9,13 @@ import {
   type ReactNode
 } from "react";
 import { GameClient } from "../game/GameClient";
+import { LIVES_TOTAL } from "../game/house/houseLayout";
 import type { RoomState } from "../types";
 
 export type Screen =
   | "menu"
   | "lobby"
   | "game"
-  | "settings"
   | "credits"
   | "end";
 
@@ -72,6 +72,7 @@ interface GameContextValue {
   startGame: () => void;
   difficulty: Difficulty;
   startSinglePlayer: (difficulty?: Difficulty) => void;
+  returnToLobby: () => void;
   leaveToMenu: () => void;
   matchTimeLeftMs: number | null;
   setMatchTimeLeftMs: (ms: number | null) => void;
@@ -81,6 +82,8 @@ interface GameContextValue {
   floor: number;
   floorTotal: number;
   advanceFloor: () => void;
+  playerLives: Record<string, number>;
+  setPlayerLives: (lives: Record<string, number>) => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -105,6 +108,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gamePlayerIds, setGamePlayerIds] = useState<string[]>([]);
   const [gameSessionKey, setGameSessionKey] = useState(0);
   const [floor, setFloor] = useState(1);
+  const [playerLives, setPlayerLives] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const offConnect = client.onConnected((id) => {
@@ -122,14 +126,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setOutcome(null);
       setMatchTimeLeftMs(null);
       setFloor(1);
+      setPlayerLives(Object.fromEntries(playerIds.map((id) => [id, LIVES_TOTAL])));
       setGameSessionKey((k) => k + 1);
       setScreen("game");
+    });
+    const offAdvanceFloor = client.onAdvanceFloor(({ floor: nextFloor, playerLives: lives }) => {
+      setFloor(nextFloor);
+      setPlayerLives(lives);
+      setOutcome(null);
+      setMatchTimeLeftMs(null);
+      setGameSessionKey((k) => k + 1);
     });
     client.socket.onDisconnected(() => setConnected(false));
     return () => {
       offConnect();
       offRoom();
       offGameStart();
+      offAdvanceFloor();
     };
   }, [client]);
 
@@ -205,6 +218,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setFloor(1);
+    setPlayerLives({});
     setGameSessionKey((k) => k + 1);
     setScreen("game");
   }, []);
@@ -219,6 +233,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameSessionKey((k) => k + 1);
   }, []);
 
+  const returnToLobby = useCallback(() => {
+    client.detachScene();
+    setOutcome(null);
+    setMatchTimeLeftMs(null);
+    setFloor(1);
+    setPlayerLives({});
+    setHostId("");
+    setGamePlayerIds([]);
+    setScreen("lobby");
+    client.socket.returnToLobby();
+  }, [client]);
+
   const leaveToMenu = useCallback(() => {
     client.socket.leaveRoom();
     client.unmountGame();
@@ -229,6 +255,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setFloor(1);
+    setPlayerLives({});
     setScreen("menu");
   }, [client]);
 
@@ -253,6 +280,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
+      returnToLobby,
       leaveToMenu,
       matchTimeLeftMs,
       setMatchTimeLeftMs,
@@ -263,7 +291,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gameSessionKey,
       floor,
       floorTotal: FLOOR_TOTAL,
-      advanceFloor
+      advanceFloor,
+      playerLives,
+      setPlayerLives
     }),
     [
       client,
@@ -283,6 +313,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       difficulty,
       startSinglePlayer,
+      returnToLobby,
       leaveToMenu,
       matchTimeLeftMs,
       setMatchTimeLeftMs,
@@ -292,7 +323,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gamePlayerIds,
       gameSessionKey,
       floor,
-      advanceFloor
+      advanceFloor,
+      playerLives
     ]
   );
 

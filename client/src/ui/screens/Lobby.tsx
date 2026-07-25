@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
+import { playerColorCss } from "../../game/house/houseLayout";
 import type { PlayerState } from "../../types";
 
 const MAX_PLAYERS = 4;
@@ -79,6 +80,11 @@ export function Lobby() {
               return (
                 <li key={player.id} className="slot">
                   <span className="slot__name">
+                    <span
+                      className="slot__color"
+                      style={{ backgroundColor: playerColorCss(i) }}
+                      aria-hidden="true"
+                    />
                     {player.name}
                     {player.id === room?.hostId && <span className="tag">Host</span>}
                     {isYou && <span className="tag">You</span>}
@@ -92,9 +98,7 @@ export function Lobby() {
           </ul>
 
           <div className="difficulty">
-            <span className="difficulty__label">
-              {isHost ? "Co-op difficulty" : "Difficulty (host sets)"}
-            </span>
+            <span className="difficulty__label">Difficulty</span>
             <div className="difficulty__toggle" role="group" aria-label="Difficulty">
               <button
                 type="button"
@@ -104,7 +108,6 @@ export function Lobby() {
                 onClick={() => pickDifficulty("normal")}
               >
                 Normal
-                <small>60s · fair pace</small>
               </button>
               <button
                 type="button"
@@ -116,12 +119,11 @@ export function Lobby() {
                 onClick={() => pickDifficulty("ludicrous")}
               >
                 Ludicrous
-                <small>30s · no mercy</small>
               </button>
             </div>
           </div>
 
-          <p className="lobby-note dim">Co-op: search rooms, collect $ valuables, and escape together. Up to 4 robbers.</p>
+          <p className="lobby-note dim">Rob the house and slip out before the cat catches you. Up to 4 robbers.</p>
 
           <div className="btn-stack">
             <Button variant="secondary" onClick={() => setReady(!ready)}>

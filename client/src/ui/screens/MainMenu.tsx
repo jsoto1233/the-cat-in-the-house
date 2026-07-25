@@ -4,7 +4,6 @@ import { Button } from "../components/Button";
 
 export function MainMenu() {
   const {
-    navigate,
     connected,
     playerName,
     setPlayerName,
@@ -24,6 +23,49 @@ export function MainMenu() {
 
   return (
     <div className="screen">
+      <div className="menu-decor" aria-hidden="true">
+        <div className="menu-decor__side menu-decor__side--left">
+          <div className="claws">
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="cat-eyes cat-eyes--high">
+            <span />
+            <span />
+          </div>
+          <div className="cat-eyes cat-eyes--low">
+            <span />
+            <span />
+          </div>
+        </div>
+        <div className="menu-decor__side menu-decor__side--right">
+          <div className="claws">
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="cat-eyes cat-eyes--high">
+            <span />
+            <span />
+          </div>
+          <div className="cat-eyes cat-eyes--low">
+            <span />
+            <span />
+          </div>
+        </div>
+        {Array.from({ length: 30 }).map((_, i) => (
+          <span
+            key={i}
+            className="mote"
+            style={{
+              left: `${(i * 61 + 7) % 100}%`,
+              animationDelay: `${(i * 0.9) % 11}s`,
+              animationDuration: `${10 + (i % 6) * 2}s`
+            }}
+          />
+        ))}
+      </div>
       <div className="screen__inner">
         <div className="brand brand--bleed">
           <h1 className="brand__title brand__title--bleed">The Cat in the House</h1>
@@ -100,7 +142,7 @@ export function MainMenu() {
           ) : (
             <div className="btn-stack">
               <div className="difficulty">
-                <span className="difficulty__label">Single-player difficulty</span>
+                <span className="difficulty__label">Difficulty</span>
                 <div className="difficulty__toggle" role="group" aria-label="Difficulty">
                   <button
                     type="button"
@@ -109,7 +151,6 @@ export function MainMenu() {
                     onClick={() => setDifficulty("normal")}
                   >
                     Normal
-                    <small>fair pace · no mercy delay</small>
                   </button>
                   <button
                     type="button"
@@ -120,7 +161,6 @@ export function MainMenu() {
                     onClick={() => setDifficulty("ludicrous")}
                   >
                     Ludicrous
-                    <small>no mercy · chaos</small>
                   </button>
                 </div>
               </div>
@@ -130,9 +170,6 @@ export function MainMenu() {
               </Button>
               <Button variant="secondary" onClick={() => setJoining(true)}>
                 Join lobby
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("settings")}>
-                Settings
               </Button>
             </div>
           )}

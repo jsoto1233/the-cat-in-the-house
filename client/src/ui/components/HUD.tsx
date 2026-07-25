@@ -1,8 +1,4 @@
 interface HUDProps {
-  objective: string;
-  showObjectivePanel: boolean;
-  objectivePanelActive: boolean;
-  onObjectiveToggle: () => void;
   timeLeftMs: number;
   cashFound: number;
   cashTotal: number;
@@ -24,10 +20,6 @@ function formatTime(ms: number) {
 }
 
 export function HUD({
-  objective,
-  showObjectivePanel,
-  objectivePanelActive,
-  onObjectiveToggle,
   timeLeftMs,
   cashFound,
   cashTotal,
@@ -43,30 +35,6 @@ export function HUD({
 
   return (
     <header className="hud" aria-label="Game status">
-      <div className="hud__slot hud__slot--objective">
-        <div className="hud__objective-wrap">
-          <button
-            type="button"
-            className={`hud__cell hud__objective-btn ${objectivePanelActive ? "is-active" : ""}`}
-            onClick={onObjectiveToggle}
-            aria-expanded={showObjectivePanel}
-            aria-controls="hud-objective-panel"
-          >
-            <span className="hud__label">Objective</span>
-          </button>
-          {showObjectivePanel && (
-            <div
-              id="hud-objective-panel"
-              className="hud__objective-panel"
-              role="region"
-              aria-label="Mission objective"
-            >
-              <p>{objective}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="hud__slot">
         <div className={`hud__cell hud__card hud__floor ${topFloor ? "is-top" : ""}`}>
           <span className="hud__label">Floor</span>

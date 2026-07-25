@@ -9,13 +9,13 @@ import {
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
+import { LIVES_TOTAL } from "../../game/house/houseLayout";
 
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
 const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
 const MATCH_MS_TICK = 1000;
 const MATCH_MS_NORMAL_FAST_INTERVAL = 500;
-const OBJECTIVE_INTRO_MS = 7000;
 
 function matchMsForDifficulty(difficulty: string) {
   return difficulty === "ludicrous" ? MATCH_MS_LUDICROUS : MATCH_MS_NORMAL;
@@ -37,7 +37,9 @@ export function GameView() {
     gameSessionKey,
     floor,
     floorTotal,
-    advanceFloor
+    advanceFloor,
+    playerLives,
+    setPlayerLives
   } = useGame();
 
   const isTopFloor = floor >= floorTotal;
@@ -46,13 +48,12 @@ export function GameView() {
   const gameRef = useRef<Phaser.Game | null>(null);
   const timeLeftRef = useRef(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
   const setTimeLeftRef = useRef<(ms: number) => void>(() => {});
+  const setPlayerLivesRef = useRef(setPlayerLives);
 
   const isMultiplayer = !!hostId && connected;
   const isHost = !isMultiplayer || client.localId === hostId;
 
   const [paused, setPaused] = useState(false);
-  const [objectiveVisible, setObjectiveVisible] = useState(true);
-  const [objectivePanelOpen, setObjectivePanelOpen] = useState(false);
   const [timeLeftMs, setTimeLeftMs] = useState(
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
@@ -71,19 +72,14 @@ export function GameView() {
   });
 
   setTimeLeftRef.current = setTimeLeftMs;
+  setPlayerLivesRef.current = setPlayerLives;
 
   useEffect(() => {
     timeLeftRef.current = timeLeftMs;
     setMatchTimeLeftMs(timeLeftMs);
   }, [timeLeftMs, setMatchTimeLeftMs]);
 
-  const showObjectivePanel = objectiveVisible || objectivePanelOpen;
-  const gameplayPaused = paused || objectivePanelOpen || gameOver;
-
-  useEffect(() => {
-    const id = window.setTimeout(() => setObjectiveVisible(false), OBJECTIVE_INTRO_MS);
-    return () => window.clearTimeout(id);
-  }, []);
+  const gameplayPaused = paused || gameOver;
 
   useEffect(() => {
     if (!floorSplash) return;
@@ -115,10 +111,20 @@ export function GameView() {
     const container = containerRef.current;
     if (!container) return;
 
+    setGameOver(false);
+    setTimeLeftMs(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
+    if (floor > 1) setFloorSplash(true);
+
     const mp = !!hostId && connected;
     const host = !mp || client.localId === hostId;
     const ids =
       mp && gamePlayerIds.length > 0 ? gamePlayerIds : [client.localId || localId || "p1"];
+    const initialPlayerLives: Record<string, number> = { ...playerLives };
+    for (const id of ids) {
+      if (initialPlayerLives[id] === undefined) {
+        initialPlayerLives[id] = LIVES_TOTAL;
+      }
+    }
     const displayDpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const game = new Phaser.Game({
@@ -137,18 +143,52 @@ export function GameView() {
         preBoot: (g) => {
           g.registry.set("difficulty", difficulty);
           g.registry.set("floor", floor);
+          g.registry.set("floorTotal", floorTotal);
           g.registry.set("multiplayer", mp);
           g.registry.set("localId", client.localId || localId || "p1");
           g.registry.set("isHost", host);
           g.registry.set("playerIds", ids);
+          g.registry.set("playerLives", initialPlayerLives);
+          g.registry.set(
+            "onPlayerLivesUpdate",
+            (lives: Record<string, number>) => setPlayerLivesRef.current(lives)
+          );
           g.registry.set("getTimeLeftMs", () => timeLeftRef.current);
           g.registry.set(
             "onMove",
-            mp ? (x: number, y: number) => client.socket.sendMove(x, y) : undefined
+            mp
+              ? (() => {
+                  let lastSentAt = 0;
+                  let lastX = Number.NaN;
+                  let lastY = Number.NaN;
+                  return (x: number, y: number) => {
+                    const now = performance.now();
+                    const moved = Number.isNaN(lastX) || Math.hypot(x - lastX, y - lastY) >= 1.5;
+                    if (!moved && now - lastSentAt < 33) return;
+                    lastSentAt = now;
+                    lastX = x;
+                    lastY = y;
+                    client.socket.sendMove(x, y);
+                  };
+                })()
+              : undefined
           );
           g.registry.set("onInteract", mp ? () => client.socket.sendInteract() : undefined);
+          g.registry.set(
+            "onCoinPickup",
+            mp && !host ? (coinIndex: number) => client.socket.sendCoinPickup(coinIndex) : undefined
+          );
           g.registry.set("onHostSync", (state: GameSyncState) => client.socket.sendGameState(state));
           g.registry.set("onMatchOver", (outcome: string) => client.socket.sendGameOver(outcome));
+          g.registry.set(
+            "onFloorAdvance",
+            (lives: Record<string, number>) => {
+              client.socket.sendAdvanceFloor({
+                floor: Math.min(floorTotal, floor + 1),
+                playerLives: lives
+              });
+            }
+          );
           g.registry.set("attachNetwork", (scene: PlayableHouseScene) => {
             client.attachScene(scene, {
               isHost: host,
@@ -170,11 +210,9 @@ export function GameView() {
 
     const onPreview = (state: PreviewState) => setPreview(state);
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
-      // Clearing a floor (single-player): if there's a floor above, climb to it
-      // instead of ending the run. The top floor's escape is the real win.
-      if (outcome === "escaped" && !mp && floor < floorTotal) {
-        setGameOver(true); // freeze this floor's scene during the remount
-        advanceFloor();
+      if (outcome === "escaped" && floor < floorTotal) {
+        setGameOver(true);
+        if (!mp) advanceFloor();
         return;
       }
       setGameOver(true);
@@ -209,21 +247,10 @@ export function GameView() {
     else scene.resume("HousePreview");
   }, [gameplayPaused]);
 
-  const exitLine = isTopFloor
-    ? "escape through the window on this top floor."
-    : `reach the stairs up to Floor ${floor + 1}.`;
-  const objective = isMultiplayer
-    ? "Co-op heist: collect all $ valuables, search cabinets for a chest key, and escape together."
-    : `Solo heist (Floor ${floor} of ${floorTotal}): collect $ valuables, search cabinets and boxes (E) for a key, open the locked chest, then ${exitLine}`;
-
   return (
     <div className="game">
       <div className="game__panel">
         <HUD
-          objective={objective}
-          showObjectivePanel={showObjectivePanel}
-          objectivePanelActive={objectivePanelOpen}
-          onObjectiveToggle={() => setObjectivePanelOpen((open) => !open)}
           timeLeftMs={timeLeftMs}
           cashFound={preview.cashFound}
           cashTotal={preview.cashTotal}
@@ -263,7 +290,6 @@ export function GameView() {
           <PauseOverlay
             open={paused}
             onResume={() => setPaused(false)}
-            onSettings={() => navigate("settings")}
             onLeave={leaveToMenu}
           />
         </div>

@@ -1,14 +1,11 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
 const app = express();
 app.use(cors());
-
-app.get("/", (_req, res) => {
-  res.send("Cat in the House backend is running!");
-});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -146,6 +143,7 @@ io.on("connection", (socket) => {
       if (!p.ready) return;
     }
     room.inGame = true;
+    room.floor = 1;
     room.timeLeftMs = room.difficulty === "ludicrous" ? 30000 : 60000;
     io.to(room.code).emit("game_start", {
       hostId: room.hostId,
@@ -160,7 +158,7 @@ io.on("connection", (socket) => {
     if (!room?.inGame || !player) return;
     player.x = x;
     player.y = y;
-    io.in(room.code).emit("player_move", { id: socket.id, x, y });
+    socket.to(room.code).emit("player_move", { id: socket.id, x, y });
   });
 
   socket.on("player_interact", () => {
@@ -186,12 +184,48 @@ io.on("connection", (socket) => {
     room.inGame = false;
   });
 
+  socket.on("coin_pickup", ({ coinIndex }) => {
+    const room = getRoom(socket);
+    if (!room?.inGame) return;
+    io.to(room.hostId).emit("coin_pickup", { id: socket.id, coinIndex: Number(coinIndex) });
+  });
+
+  socket.on("return_to_lobby", () => {
+    const room = getRoom(socket);
+    if (!room || room.inGame) return;
+    if (!room.players.has(socket.id)) return;
+    for (const p of room.players.values()) {
+      p.ready = false;
+    }
+    broadcastRoom(room);
+  });
+
+  socket.on("advance_floor", (payload) => {
+    const room = getRoom(socket);
+    if (!room?.inGame || socket.id !== room.hostId) return;
+    const floor = Number(payload?.floor);
+    if (!Number.isFinite(floor) || floor < 1) return;
+    room.floor = floor;
+    room.playerLives = payload.playerLives ?? room.playerLives;
+    io.to(room.code).emit("advance_floor", {
+      floor,
+      playerLives: room.playerLives ?? {}
+    });
+  });
+
   socket.on("disconnect", () => {
     console.log(`Player disconnected: ${socket.id}`);
     removeFromRoom(socket);
   });
 });
 
-server.listen(3001, () => {
-  console.log("Server running on port 3001 \nServer running on http://localhost:3001/");
+const clientDist = path.join(__dirname, "../../client/dist");
+app.use(express.static(clientDist));
+app.get("/{*splat}", (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

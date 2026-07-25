@@ -2,7 +2,9 @@ import { io, type Socket } from "socket.io-client";
 import type { RoomState } from "../types";
 import type { MatchOutcome, PlayableHouseScene } from "./scenes/PlayableHouseScene";
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
+const SERVER_URL =
+  import.meta.env.VITE_SERVER_URL ??
+  (import.meta.env.PROD ? window.location.origin : "http://localhost:3001");
 
 type ConnectedHandler = (id: string) => void;
 type RoomHandler = (state: RoomState) => void;
@@ -15,15 +17,23 @@ type GameStateHandler = (state: GameSyncState) => void;
 type GameOverHandler = (payload: { outcome: string }) => void;
 type PlayerMoveHandler = (payload: { id: string; x: number; y: number }) => void;
 type PlayerInteractHandler = (payload: { id: string }) => void;
+type AdvanceFloorHandler = (payload: AdvanceFloorPayload) => void;
+type CoinPickupHandler = (payload: { id: string; coinIndex: number }) => void;
+
+export interface AdvanceFloorPayload {
+  floor: number;
+  playerLives: Record<string, number>;
+}
 
 export interface GameSyncState {
+  floor?: number;
   players: Record<string, { x: number; y: number; alive: boolean }>;
   cashFound: number;
   collectedLoot: number[];
   hasKey?: boolean;
   openedInteractables?: string[];
   cat: { x: number; y: number; mood: string };
-  lives: number;
+  playerLives: Record<string, number>;
   timeLeftMs: number;
   matchEnded?: boolean;
   outcome?: string;
@@ -81,6 +91,18 @@ class GameSocket {
   sendGameOver(outcome: string): void {
     this.ioSocket.emit("game_over", { outcome });
   }
+
+  sendAdvanceFloor(payload: AdvanceFloorPayload): void {
+    this.ioSocket.emit("advance_floor", payload);
+  }
+
+  returnToLobby(): void {
+    this.ioSocket.emit("return_to_lobby");
+  }
+
+  sendCoinPickup(coinIndex: number): void {
+    this.ioSocket.emit("coin_pickup", { coinIndex });
+  }
 }
 
 export class GameClient {
@@ -98,6 +120,8 @@ export class GameClient {
   private gameOverHandlers = new Set<GameOverHandler>();
   private playerMoveHandlers = new Set<PlayerMoveHandler>();
   private playerInteractHandlers = new Set<PlayerInteractHandler>();
+  private advanceFloorHandlers = new Set<AdvanceFloorHandler>();
+  private coinPickupHandlers = new Set<CoinPickupHandler>();
   private sceneUnsubs: Array<() => void> = [];
 
   constructor() {
@@ -134,12 +158,20 @@ export class GameClient {
       this.gameOverHandlers.forEach((cb) => cb(payload));
     });
 
+    this.ioSocket.on("advance_floor", (payload: AdvanceFloorPayload) => {
+      this.advanceFloorHandlers.forEach((cb) => cb(payload));
+    });
+
     this.ioSocket.on("player_move", (payload: { id: string; x: number; y: number }) => {
       this.playerMoveHandlers.forEach((cb) => cb(payload));
     });
 
     this.ioSocket.on("player_interact", (payload: { id: string }) => {
       this.playerInteractHandlers.forEach((cb) => cb(payload));
+    });
+
+    this.ioSocket.on("coin_pickup", (payload: { id: string; coinIndex: number }) => {
+      this.coinPickupHandlers.forEach((cb) => cb(payload));
     });
 
     this.ioSocket.on("room_error", ({ message }: { message: string }) => {
@@ -163,6 +195,11 @@ export class GameClient {
           if (id === this.localId) return;
           const pos = scene.getPlayerPosition(id);
           if (pos) scene.tryInteractAt(id, pos.x, pos.y);
+        })
+      );
+      this.sceneUnsubs.push(
+        this.onCoinPickup(({ id, coinIndex }) => {
+          scene.handleRemoteCoinPickup(id, coinIndex);
         })
       );
     }
@@ -226,6 +263,16 @@ export class GameClient {
   onPlayerInteract(cb: PlayerInteractHandler): () => void {
     this.playerInteractHandlers.add(cb);
     return () => this.playerInteractHandlers.delete(cb);
+  }
+
+  onAdvanceFloor(cb: AdvanceFloorHandler): () => void {
+    this.advanceFloorHandlers.add(cb);
+    return () => this.advanceFloorHandlers.delete(cb);
+  }
+
+  onCoinPickup(cb: CoinPickupHandler): () => void {
+    this.coinPickupHandlers.add(cb);
+    return () => this.coinPickupHandlers.delete(cb);
   }
 
   mountGame(_containerId: string): void {}

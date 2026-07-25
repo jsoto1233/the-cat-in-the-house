@@ -454,6 +454,14 @@ input {
   font-weight: 500;
 }
 
+.slot__color {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
 .tag {
   font-size: 0.68rem;
   text-transform: uppercase;
@@ -1060,6 +1068,11 @@ input {
   cursor: pointer;
   text-align: center;
   padding: 0.5rem 0.4rem;
+  /* Keep the original two-line height after removing the caption text. */
+  min-height: 2.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--panel-2);
@@ -1115,4 +1128,246 @@ input {
   align-items: center;
   gap: 12px;
   padding: 16px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Main-menu atmosphere: glowing cat eyes, blood-streak claws, and     */
+/* drifting embers filling the empty sides. Purely decorative — sits   */
+/* behind the menu and never captures clicks.                          */
+/* ------------------------------------------------------------------ */
+.screen {
+  position: relative;
+}
+.screen__inner {
+  position: relative;
+  z-index: 1;
+}
+
+.menu-decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.menu-decor__side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26%;
+}
+.menu-decor__side--left {
+  left: 0;
+}
+.menu-decor__side--right {
+  right: 0;
+}
+
+/* Glowing cat eyes peering out of the shadows. */
+.cat-eyes {
+  position: absolute;
+  display: flex;
+  gap: 13px;
+  opacity: 0;
+  animation: prowl 16s ease-in-out infinite;
+}
+.cat-eyes span {
+  position: relative;
+  width: 18px;
+  height: 23px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #ffe66a, #d6a800 58%, #6b5600);
+  box-shadow: 0 0 14px 4px rgba(255, 210, 60, 0.55),
+    0 0 34px 12px rgba(255, 180, 40, 0.22);
+}
+.cat-eyes span::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3.4px;
+  height: 74%;
+  transform: translate(-50%, -50%);
+  background: #170f00;
+  border-radius: 45%;
+}
+.menu-decor__side--left .cat-eyes {
+  left: 7%;
+}
+.menu-decor__side--right .cat-eyes {
+  right: 7%;
+}
+/* Each pair prowls its own vertical band, so the cat seems to move around. */
+.menu-decor__side--left .cat-eyes--high {
+  top: 12%;
+  animation-duration: 15s;
+}
+.menu-decor__side--left .cat-eyes--low {
+  top: 46%;
+  animation-duration: 17s;
+  animation-delay: 5s;
+  animation-direction: alternate;
+}
+.menu-decor__side--right .cat-eyes--high {
+  top: 20%;
+  animation-duration: 16s;
+  animation-delay: 2.5s;
+  animation-direction: alternate;
+}
+.menu-decor__side--right .cat-eyes--low {
+  top: 54%;
+  animation-duration: 18s;
+  animation-delay: 7s;
+}
+
+/* Fade out, glide to a new spot in the dark, fade back in — the cat prowling. */
+@keyframes prowl {
+  0% { transform: translate(0, 0); opacity: 0; }
+  9% { opacity: 0.95; }
+  15% { opacity: 0.4; }
+  21% { opacity: 0.95; }
+  27% { opacity: 0; }
+  50% { transform: translate(34px, 150px); opacity: 0; }
+  56% { opacity: 0.95; }
+  62% { opacity: 0.4; }
+  68% { opacity: 0.95; }
+  74% { opacity: 0; }
+  100% { transform: translate(-14px, 300px); opacity: 0; }
+}
+
+/* Blood-streak claw marks down the sides. */
+.claws {
+  position: absolute;
+  top: 42%;
+  width: 44px;
+  height: 130px;
+  opacity: 0.5;
+}
+.menu-decor__side--left .claws {
+  left: 9%;
+  transform: rotate(9deg);
+}
+.menu-decor__side--right .claws {
+  right: 9%;
+  transform: scaleX(-1) rotate(9deg);
+}
+.claws i {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 4%,
+    rgba(224, 41, 74, 0.75) 34%,
+    rgba(125, 15, 34, 0.55) 82%,
+    transparent
+  );
+  border-radius: 40%;
+  box-shadow: 0 0 6px rgba(224, 41, 74, 0.4);
+}
+.claws i:nth-child(1) {
+  left: 0;
+  height: 82%;
+}
+.claws i:nth-child(2) {
+  left: 16px;
+  height: 100%;
+}
+.claws i:nth-child(3) {
+  left: 32px;
+  height: 88%;
+}
+
+/* Drifting embers rising through the dark. */
+.mote {
+  position: absolute;
+  bottom: -12px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(224, 70, 90, 0.55);
+  box-shadow: 0 0 6px rgba(224, 70, 90, 0.45);
+  opacity: 0;
+  animation-name: mote-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes mote-drift {
+  0% { transform: translate(0, 0); opacity: 0; }
+  12% { opacity: 0.6; }
+  88% { opacity: 0.4; }
+  100% { transform: translate(16px, -108vh); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-eyes {
+    animation: none;
+    opacity: 0.55;
+  }
+  .mote {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Background-music control, docked bottom-right. Hover/focus the      */
+/* speaker to slide out the volume slider; click the speaker to mute.  */
+/* ------------------------------------------------------------------ */
+.music-ctl {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Vertical slider that slides up above the speaker on hover — no chrome. */
+.music-ctl__slider {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  width: 40px;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(6px);
+  transition: height 0.22s ease, opacity 0.22s ease, transform 0.22s ease;
+}
+.music-ctl:hover .music-ctl__slider {
+  height: 110px;
+  opacity: 1;
+  transform: translateY(0);
+}
+.music-ctl__slider input[type="range"] {
+  writing-mode: vertical-lr;
+  direction: rtl; /* drag up = louder */
+  width: 20px;
+  height: 104px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+}
+
+.music-ctl__btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.music-ctl__btn:hover {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.music-ctl__btn[aria-pressed="true"] {
+  color: var(--text-dim);
 }

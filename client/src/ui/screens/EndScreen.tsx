@@ -5,7 +5,7 @@ const COPY = {
   escaped: {
     title: "Got away with the loot",
     className: "outcome-escaped",
-    blurb: "All floors cleared. Bag stuffed with valuables, you slipped out the top-floor window and vanished into the night."
+    blurb: "All floors cleared. You slipped out the window with the loot and vanished into the night."
   },
   caught: {
     title: "The cat caught you",
@@ -19,8 +19,10 @@ const COPY = {
 } as const;
 
 export function EndScreen() {
-  const { outcome, leaveToMenu, startSinglePlayer, difficulty } = useGame();
+  const { outcome, leaveToMenu, startSinglePlayer, returnToLobby, difficulty, roomId, connected } =
+    useGame();
   const data = COPY[outcome ?? "timeout"];
+  const wasMultiplayer = !!(roomId && connected);
 
   return (
     <div className="screen">
@@ -30,10 +32,21 @@ export function EndScreen() {
           {"blurb" in data && <p>{data.blurb}</p>}
           <div className="divider" />
           <div className="btn-stack">
-            <Button onClick={() => startSinglePlayer(difficulty)}>Try Again</Button>
-            <Button variant="secondary" onClick={leaveToMenu}>
-              Main Menu
-            </Button>
+            {wasMultiplayer ? (
+              <>
+                <Button onClick={returnToLobby}>Return to Lobby</Button>
+                <Button variant="secondary" onClick={leaveToMenu}>
+                  Leave Lobby
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={() => startSinglePlayer(difficulty)}>Try Again</Button>
+                <Button variant="secondary" onClick={leaveToMenu}>
+                  Main Menu
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
