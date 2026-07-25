@@ -121,15 +121,19 @@ export const CAT_PROFILES = {
 export const MULTI_CAT_LEVELS = new Set([3, 4]);
 
 export function catCountForLevel(level: number): number {
-  if (level >= 4) return 4;
+  if (level >= 4) return 3;
   if (MULTI_CAT_LEVELS.has(level)) return 2;
   return 1;
 }
 
-export function profileForLevel(level: number, role: CatRole = "hunter"): BehaviorProfile {
+export function profileForLevel(
+  level: number,
+  role: CatRole = "hunter",
+  enableTeleport = true
+): BehaviorProfile {
   const base = role === "stalker" ? CAT_PROFILES.STALKER : CAT_PROFILES.HUNTER;
   if (!MULTI_CAT_LEVELS.has(level)) return { ...base, enableTeleport: false };
-  return { ...base, enableTeleport: true };
+  return { ...base, enableTeleport };
 }
 
 type Listener = (data: Record<string, unknown>) => void;

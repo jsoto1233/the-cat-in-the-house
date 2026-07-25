@@ -378,9 +378,11 @@ export class PlayableHouseScene extends Phaser.Scene {
       const role = CAT_ROLES[i % CAT_ROLES.length];
       const catId = count === 1 ? "cat" : `cat_${String.fromCharCode(97 + i)}`;
       const spawn = spawns[i] ?? { ...this.catSpawnPos, x: this.catSpawnPos.x + i * 40 };
+      const isTeleporter = this.floor === 4 && i === 0;
+      const behaviorProfile = profileForLevel(this.floor, role, isTeleporter);
       const ai = new CatAI(spawn, 800, 600, this.collisionMap, {
         catId,
-        behaviorProfile: profileForLevel(this.floor, role),
+        behaviorProfile,
         rooms: this.layout.rooms
       });
       ai.reset();
@@ -392,7 +394,25 @@ export class PlayableHouseScene extends Phaser.Scene {
         CAT_BODY_COLORS[i] ?? PALETTE.cat,
         CAT_EYE_COLORS[i] ?? 0xffe23a
       );
-      this.catEntries.push({ id: catId, ai, container, spawn: { ...spawn } });
+
+      const teleportEffect = this.add
+        .ellipse(0, 0, 44, 44, 0x48d9ff, 0)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      container.addAt(teleportEffect, 0);
+
+      ai.on("cat_teleported", () => {
+        teleportEffect.setScale(0.8).setAlpha(0.75);
+        this.tweens.add({
+          targets: teleportEffect,
+          alpha: 0,
+          scaleX: 1.6,
+          scaleY: 1.6,
+          duration: 350,
+          ease: "Cubic.easeOut"
+        });
+      });
+
+      this.catEntries.push({ id: catId, ai, container, spawn: { ...spawn }, teleportEffect });
     }
     CatAI.assignPreferredTargets(
       this.catEntries.map((e) => e.ai),

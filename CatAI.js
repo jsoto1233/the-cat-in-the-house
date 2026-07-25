@@ -93,23 +93,24 @@ export const CAT_PROFILES = {
 /** Levels that spawn multiple cats with teleport enabled. */
 export const MULTI_CAT_LEVELS = new Set([3, 4]);
 
-/** How many cats to spawn per level (1 on 1–2, 2 on 3, 4 on 4). */
+/** How many cats to spawn per level (1 on 1–2, 2 on 3, 3 on 4). */
 export function catCountForLevel(level) {
-  if (level >= 4) return 4;
+  if (level >= 4) return 3;
   if (MULTI_CAT_LEVELS.has(level)) return 2;
   return 1;
 }
 
 /**
  * Build a behaviorProfile for a given level + role.
- * Levels 1–2: single cat, no teleport. Levels 3–4: role-specific profiles + teleport.
+ * Levels 1–2: single cat, no teleport. Level 3: multi-cat teleport enabled.
+ * Level 4: only the designated teleporter can teleport.
  */
-export function profileForLevel(level, role = 'hunter') {
+export function profileForLevel(level, role = 'hunter', enableTeleport = true) {
   const base = role === 'stalker' ? CAT_PROFILES.STALKER : CAT_PROFILES.HUNTER;
   if (!MULTI_CAT_LEVELS.has(level)) {
     return { ...base, enableTeleport: false };
   }
-  return { ...base, enableTeleport: true };
+  return { ...base, enableTeleport };
 }
 
 const MAX_STEP_PX = 8;
