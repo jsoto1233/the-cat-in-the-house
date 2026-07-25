@@ -14,7 +14,7 @@
  *
  * Levels 1–2: one cat, no teleport.
  * Level 3: two cats (Hunter + Stalker), teleport enabled.
- * Level 4: four cats, teleport enabled — tick/serialize via `cats`.
+ * Level 4: three cats, only one teleporter — tick/serialize via `cats`.
  */
 
 import {
@@ -258,9 +258,10 @@ export class GameLogic {
 
     for (let i = 0; i < count; i++) {
       const spawn = spawns[i] ?? { x: catStartPos.x + i * 48, y: catStartPos.y };
+      const isTeleporter = this.level === 4 && i === 0;
       cats.push(this._createCat(scene, spawn, collisionMap, {
         catId: `cat_${String.fromCharCode(97 + i)}`,
-        behaviorProfile: profileForLevel(this.level, roles[i % roles.length]),
+        behaviorProfile: profileForLevel(this.level, roles[i % roles.length], isTeleporter),
       }));
     }
 

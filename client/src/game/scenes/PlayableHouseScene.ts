@@ -51,6 +51,14 @@ type RemotePos = {
   alive: boolean;
 };
 
+type CatEntry = {
+  id: string;
+  ai: CatAI;
+  container: Phaser.GameObjects.Container;
+  spawn: { x: number; y: number };
+  teleportEffect?: Phaser.GameObjects.Ellipse;
+};
+
 const HOST_SYNC_MS = 33;
 const CAT_RECONCILE_SNAP_PX = 120;
 
@@ -369,7 +377,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private setupCats() {
-    const count = catCountForLevel(this.floor);
+    const count = catCountForLevel(this.currentFloor);
     const spawns = CatAI.pickDistinctRoomSpawns(this.layout.rooms, this.collisionMap, count);
     if (spawns.length === 0) spawns.push({ ...this.catSpawnPos });
 
@@ -378,8 +386,8 @@ export class PlayableHouseScene extends Phaser.Scene {
       const role = CAT_ROLES[i % CAT_ROLES.length];
       const catId = count === 1 ? "cat" : `cat_${String.fromCharCode(97 + i)}`;
       const spawn = spawns[i] ?? { ...this.catSpawnPos, x: this.catSpawnPos.x + i * 40 };
-      const isTeleporter = this.floor === 4 && i === 0;
-      const behaviorProfile = profileForLevel(this.floor, role, isTeleporter);
+      const isTeleporter = this.currentFloor === 4 && i === 0;
+      const behaviorProfile = profileForLevel(this.currentFloor, role, isTeleporter);
       const ai = new CatAI(spawn, 800, 600, this.collisionMap, {
         catId,
         behaviorProfile,
