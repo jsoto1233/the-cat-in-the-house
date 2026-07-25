@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { CatAI, catCountForLevel, profileForLevel, type CatRole } from "../CatAI";
+import { CatAI } from "../CatAI";
 import {
   CASH_TOTAL,
   CAT_SPAWN,
@@ -78,9 +78,10 @@ export class PlayableHouseScene extends Phaser.Scene {
   private currentFloor = 1;
   private floorTotal = 4;
   private catSpawnPos = CAT_SPAWN;
-  private catEntries: CatEntry[] = [];
+  private cat!: CatAI;
 
   private playerContainer!: Phaser.GameObjects.Container;
+  private catContainer!: Phaser.GameObjects.Container;
 
   private playerX = PLAYER_SPAWN.x;
   private playerY = PLAYER_SPAWN.y;
@@ -211,13 +212,10 @@ export class PlayableHouseScene extends Phaser.Scene {
     const uncollectedLoot = this.money
       .filter((m) => !m.collected)
       .map((m) => ({ x: m.x, y: m.y }));
-    const players = this.getAllPlayerStates();
+    this.cat.setHuntContext(this.cashFound, uncollectedLoot);
 
-    for (const entry of this.catEntries) {
-      entry.ai.setHuntContext(this.cashFound, uncollectedLoot);
-      entry.ai.update(delta, players);
-      entry.container.setPosition(entry.ai.x, entry.ai.y);
-    }
+    this.cat.update(delta, this.getAllPlayerStates());
+    this.catContainer.setPosition(this.cat.x, this.cat.y);
 
     this.checkPickups();
     this.checkInteractInput();
@@ -368,37 +366,12 @@ export class PlayableHouseScene extends Phaser.Scene {
     ]);
   }
 
-  private setupCats() {
-    const count = catCountForLevel(this.floor);
-    const spawns = CatAI.pickDistinctRoomSpawns(this.layout.rooms, this.collisionMap, count);
-    if (spawns.length === 0) spawns.push({ ...this.catSpawnPos });
-
-    this.catEntries = [];
-    for (let i = 0; i < count; i++) {
-      const role = CAT_ROLES[i % CAT_ROLES.length];
-      const catId = count === 1 ? "cat" : `cat_${String.fromCharCode(97 + i)}`;
-      const spawn = spawns[i] ?? { ...this.catSpawnPos, x: this.catSpawnPos.x + i * 40 };
-      const ai = new CatAI(spawn, 800, 600, this.collisionMap, {
-        catId,
-        behaviorProfile: profileForLevel(this.floor, role),
-        rooms: this.layout.rooms
-      });
-      ai.reset();
-      ai.setDifficulty(this.difficulty);
-      const container = buildCat(
-        this,
-        spawn.x,
-        spawn.y,
-        CAT_BODY_COLORS[i] ?? PALETTE.cat,
-        CAT_EYE_COLORS[i] ?? 0xffe23a
-      );
-      this.catEntries.push({ id: catId, ai, container, spawn: { ...spawn } });
-    }
-    CatAI.assignPreferredTargets(
-      this.catEntries.map((e) => e.ai),
-      this.playerIds
-    );
+  private setupCat() {
+    this.cat = new CatAI(this.catSpawnPos, 800, 600, this.collisionMap);
+    this.cat.reset();
+    this.cat.setDifficulty(this.difficulty);
   }
+
   private movePlayer(dt: number) {
     if (!this.isPlayerAlive(this.localId)) return;
     let dx = 0;
@@ -546,11 +519,6 @@ export class PlayableHouseScene extends Phaser.Scene {
         alive: this.isPlayerAlive(id)
       };
     }
-    const cats: Record<string, { x: number; y: number; mood: string }> = {};
-    for (const entry of this.catEntries) {
-      cats[entry.id] = { x: entry.ai.x, y: entry.ai.y, mood: entry.ai.mood };
-    }
-    const primary = this.catEntries[0]?.ai;
     return {
       floor: this.currentFloor,
       players,
@@ -629,9 +597,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     if (def.contains === "key") {
       this.hasKey = true;
       showInteractFeedback(this, this.feedbackText, "Found a key!");
-      for (const entry of this.catEntries) {
-        entry.ai.onClueCollected(playerId, `key_${def.id}`);
-      }
+      this.cat.onClueCollected(playerId, `key_${def.id}`);
     } else if (def.contains === "cash") {
       this.grantCash(1, playerId, def.id);
       showInteractFeedback(this, this.feedbackText, "Found $1!");
@@ -650,9 +616,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     const added = Math.min(amount, CASH_TOTAL - this.cashFound);
     if (added <= 0) return;
     this.cashFound += added;
-    for (const entry of this.catEntries) {
-      entry.ai.onClueCollected(playerId, `loot_${sourceId}`);
-    }
+    this.cat.onClueCollected(playerId, `loot_${sourceId}`);
   }
 
   private updateInteractPrompt() {
@@ -749,12 +713,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private syncMoodAndAttic() {
-    const moods = this.catEntries.map((e) => e.ai.mood);
-    const mood: PreviewMood = moods.includes("aggressive")
-      ? "aggressive"
-      : moods.includes("warning")
-        ? "warning"
-        : "calm";
+    const mood = this.cat.mood;
     const atticUnlocked = this.cashFound >= CASH_TOTAL;
     if (mood !== this.lastMood || atticUnlocked !== this.lastAtticUnlocked) {
       this.emitPreview();
@@ -812,12 +771,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private emitPreview(_initial = false) {
     if (!this.multiplayer || this.isHost) {
-      const moods = this.catEntries.map((e) => e.ai.mood);
-      this.lastMood = moods.includes("aggressive")
-        ? "aggressive"
-        : moods.includes("warning")
-          ? "warning"
-          : "calm";
+      this.lastMood = this.cat ? this.cat.mood : "calm";
     }
     this.lastAtticUnlocked = this.cashFound >= CASH_TOTAL;
     const state: PreviewState = {

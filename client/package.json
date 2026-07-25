@@ -12,12 +12,12 @@
     "phaser": "^3.90.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "socket.io-client": "^4.2.0"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.7",
     "@types/react-dom": "^18.3.0",
     "typescript": "^5.6.2",
-    "vite": "^8.0.16"
+    "vite": "^5.4.8"
   }
 }
