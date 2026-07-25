@@ -36,9 +36,10 @@ export function MusicPlayer() {
   const { screen } = useGame();
 
   // Create the audio once, loop it forever, and start it on the first user
-  // interaction (browsers block autoplay-with-sound until then). We listen in
-  // the capture phase across several gesture types so ANY first click/tap/key
-  // starts it — not only clicking the speaker.
+  // interaction (browsers block autoplay-with-sound until then). Different
+  // browsers unlock on different events — Safari needs click/touchend, not just
+  // pointerdown — so we listen for all of them in the capture phase and stop
+  // once playback actually begins.
   useEffect(() => {
     const audio = new Audio(musicUrl);
     audio.loop = true;
@@ -47,24 +48,28 @@ export function MusicPlayer() {
     audio.volume = stored.muted ? 0 : stored.volume;
     audioRef.current = audio;
 
-    void audio.play().catch(() => {});
-
-    const unlock = () => {
-      void audio.play().catch(() => {});
-      if (!audio.paused) {
-        window.removeEventListener("pointerdown", unlock, true);
-        window.removeEventListener("keydown", unlock, true);
-        window.removeEventListener("touchstart", unlock, true);
-      }
+    const events: (keyof WindowEventMap)[] = [
+      "pointerdown",
+      "pointerup",
+      "click",
+      "keydown",
+      "touchstart",
+      "touchend"
+    ];
+    const removeAll = () =>
+      events.forEach((e) => window.removeEventListener(e, start, true));
+    const start = () => {
+      audio
+        .play()
+        .then(removeAll) // playing for real — stop listening
+        .catch(() => {});
     };
-    window.addEventListener("pointerdown", unlock, true);
-    window.addEventListener("keydown", unlock, true);
-    window.addEventListener("touchstart", unlock, true);
+
+    start(); // try immediately (usually blocked until a gesture)
+    events.forEach((e) => window.addEventListener(e, start, true));
 
     return () => {
-      window.removeEventListener("pointerdown", unlock, true);
-      window.removeEventListener("keydown", unlock, true);
-      window.removeEventListener("touchstart", unlock, true);
+      removeAll();
       audio.pause();
       audioRef.current = null;
     };
