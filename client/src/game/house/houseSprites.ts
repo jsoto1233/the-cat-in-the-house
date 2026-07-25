@@ -383,14 +383,20 @@ export function buildPlayer(
   return scene.add.container(x, y, [shadow, dir, body, ring, eyeL, eyeR]).setDepth(5);
 }
 
-export function buildCat(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
+export function buildCat(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  bodyColor = PALETTE.cat,
+  eyeColor = 0xffe23a
+): Phaser.GameObjects.Container {
   const shadow = scene.add.ellipse(0, 14, 34, 12, 0x000000, 0.45);
   const earL = scene.add.triangle(-9, -12, 0, 0, 10, 0, 5, -12, PALETTE.catEar);
   const earR = scene.add.triangle(9, -12, 0, 0, 10, 0, 5, -12, PALETTE.catEar);
-  const body = scene.add.ellipse(0, 0, 34, 28, PALETTE.cat);
-  const eyeL = scene.add.circle(-6, -2, 2.4, 0xffe23a);
-  const eyeR = scene.add.circle(6, -2, 2.4, 0xffe23a);
-  const tail = scene.add.ellipse(20, 6, 18, 6, PALETTE.cat);
+  const body = scene.add.ellipse(0, 0, 34, 28, bodyColor);
+  const eyeL = scene.add.circle(-6, -2, 2.4, eyeColor);
+  const eyeR = scene.add.circle(6, -2, 2.4, eyeColor);
+  const tail = scene.add.ellipse(20, 6, 18, 6, bodyColor);
   return scene.add.container(x, y, [shadow, tail, earL, earR, body, eyeL, eyeR]).setDepth(4);
 }
 
