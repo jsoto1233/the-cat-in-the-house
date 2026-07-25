@@ -1,28 +1,20 @@
 /**
  * GameLogic.js
  * ============
- Game Logic for "The Cat in the House"
+ * Ayman's Game Logic for "The Cat in the House"
  *
  * Manages:
  *  - Countdown timer
  *  - Clue collection
+ *  - Task scheduling (when does the cat start needing things?)
  *  - Win / lose conditions
  *  - Integration point between CatAI and the rest of the game
  *
  * Designed to be constructed once per game session and ticked each frame.
  * Emits events that Vincent's multiplayer layer (Socket.io) can forward.
- *
- * Levels 1–2: one cat, no teleport.
- * Level 3: two cats (Hunter + Stalker), teleport enabled.
- * Level 4: four cats, teleport enabled — tick/serialize via `cats`.
  */
 
-import {
-  CatAI,
-  CAT_STATES,
-  catCountForLevel,
-  profileForLevel,
-} from './CatAI.js';
+import { CatAI, CAT_STATES } from './CatAI.js';
 
 export const GAME_STATE = {
   WAITING:  'WAITING',   // lobby – not yet started
@@ -50,28 +42,15 @@ const GAME_DURATION_SECONDS  = 300;  // 5 minutes
 export class GameLogic {
   /**
    * @param {object} options
-   * @param {object} options.catStartPos  - { x, y } fallback spawn for single-cat levels
+   * @param {object} options.catStartPos  - { x, y } world position for the cat
    * @param {number} options.mapWidth
    * @param {number} options.mapHeight
-   * @param {number} [options.level=1]    - floor/level (1–4); 3–4 spawn two cats
-   * @param {object} [options.scene]        - Phaser.Scene (optional; null in tests)
-   * @param {object} [options.collisionMap] - optional collision map for the cats
-   * @param {{ key: string, x: number, y: number, w: number, h: number }[]} [options.rooms]
-   *   - room bounds for multi-cat spawn + teleport (pass floor layout rooms on 3–4)
+   * @param {object} [options.scene]      - Phaser.Scene (optional; null in tests)
+   * @param {object} [options.collisionMap] - optional collision map for the cat
    */
-  constructor({
-    catStartPos,
-    mapWidth,
-    mapHeight,
-    level = 1,
-    scene = null,
-    collisionMap = null,
-    rooms = null,
-  }) {
+  constructor({ catStartPos, mapWidth, mapHeight, scene = null, collisionMap = null }) {
     this.mapWidth  = mapWidth;
     this.mapHeight = mapHeight;
-    this.level     = level;
-    this.rooms     = rooms;
 
     this.gameState  = GAME_STATE.WAITING;
     this.timeLeft   = GAME_DURATION_SECONDS;   // seconds
@@ -80,9 +59,14 @@ export class GameLogic {
     // Players map: id → { id, x, y, alive }
     this.players = new Map();
 
-    this.cats = this._spawnCats(scene, catStartPos, collisionMap);
-    /** @deprecated Use `cats` — kept for single-cat call sites (levels 1–2). */
-    this.cat = this.cats[0];
+    // Cat
+    this.cat = new CatAI(scene, catStartPos, mapWidth, mapHeight, collisionMap);
+    this.cat
+      .on('state_changed', d  => this._emit('cat_state_changed', d))
+      .on('cat_awoke', d      => this._emit('cat_awoke', d))
+      .on('player_caught', d  => this._onPlayerCaught(d))
+      .on('task_completed', d => this._emit('task_completed', d))
+      .on('task_neglected', d => this._emit('task_neglected', d));
 
     // Pending task schedule (shallow copy so we can splice)
     this._taskSchedule = [...TASK_SCHEDULE];
@@ -107,15 +91,11 @@ export class GameLogic {
     this.timeLeft      = GAME_DURATION_SECONDS;
     this.cluesFound    = 0;
     this.clueLocations = this._placeClues();
-
-    for (const cat of this.cats) cat.reset();
-    CatAI.assignPreferredTargets(this.cats, [...this.players.keys()]);
+    this.cat.reset();
 
     this._emit('game_started', {
-      level: this.level,
       clueLocations: this.clueLocations,
-      cats: this._serializeCats(),
-      cat:  this.cat.serialize(),
+      cat: this.cat.serialize(),
     });
   }
 
@@ -136,19 +116,15 @@ export class GameLogic {
     // Fire scheduled tasks
     this._checkTaskSchedule();
 
-    // Tick all cat AI instances
+    // Tick cat AI
     const alivePlayers = [...this.players.values()].filter(p => p.alive);
     const safeDelta = Math.min(delta, 50);
-    for (const cat of this.cats) {
-      cat.update(safeDelta, alivePlayers);
-    }
+    this.cat.update(safeDelta, alivePlayers);
 
     // Broadcast frame sync for clients and server sync layers
     this._emit('tick', {
-      level:      this.level,
       timeLeftMs: Math.max(0, Math.round(this.timeLeft * 1000)),
       cluesFound: this.cluesFound,
-      cats:       this._serializeCats(),
       cat:        this.cat.serialize(),
     });
   }
@@ -185,9 +161,7 @@ export class GameLogic {
       cluesNeeded: CLUES_NEEDED_TO_ESCAPE,
     });
 
-    for (const cat of this.cats) {
-      cat.onClueCollected(playerId, clueId);
-    }
+    this.cat.onClueCollected(playerId, clueId);
 
     if (this.cluesFound >= CLUES_NEEDED_TO_ESCAPE) {
       this._emit('all_clues_found', {});
@@ -197,7 +171,7 @@ export class GameLogic {
   /** Player completes a cat task (feeding, toy, comfort). */
   completeCatTask(playerId, task) {
     if (this.gameState !== GAME_STATE.PLAYING) return;
-    for (const cat of this.cats) cat.completeTask(task);
+    this.cat.completeTask(task);
     this._emit('player_completed_task', { playerId, task });
   }
 
@@ -208,7 +182,7 @@ export class GameLogic {
       this._emit('escape_failed', { playerId, reason: 'missing_clues' });
       return;
     }
-    if (this.cats.some(c => c.state === CAT_STATES.HUNT)) {
+    if (this.cat.state === CAT_STATES.HUNT) {
       this._emit('escape_failed', { playerId, reason: 'cat_hunting' });
       return;
     }
@@ -216,18 +190,9 @@ export class GameLogic {
   }
 
   setCollisionMap(collisionMap) {
-    for (const cat of this.cats) {
-      cat._collisionMap = collisionMap;
-      cat._path = [];
-      cat._pathGoal = null;
-      cat._snapToWalkable();
-    }
-  }
-
-  /** Update room bounds used for multi-cat spawn/teleport (e.g. after floor layout loads). */
-  setRooms(rooms) {
-    this.rooms = rooms;
-    for (const cat of this.cats) cat._rooms = rooms;
+    this.cat._collisionMap = collisionMap;
+    this.cat._path = [];
+    this.cat._pathGoal = null;
   }
 
   /** Event subscription (mirrors CatAI.on pattern). */
@@ -241,79 +206,22 @@ export class GameLogic {
   // Private
   // ─────────────────────────────────────────────────────────────────
 
-  _spawnCats(scene, catStartPos, collisionMap) {
-    const count = catCountForLevel(this.level);
-    if (count === 1) {
-      return [
-        this._createCat(scene, catStartPos, collisionMap, {
-          catId: 'cat',
-          behaviorProfile: profileForLevel(this.level, 'hunter'),
-        }),
-      ];
-    }
-
-    const spawns = CatAI.pickDistinctRoomSpawns(this.rooms, collisionMap, count);
-    const roles = ['hunter', 'stalker', 'hunter', 'stalker'];
-    const cats = [];
-
-    for (let i = 0; i < count; i++) {
-      const spawn = spawns[i] ?? { x: catStartPos.x + i * 48, y: catStartPos.y };
-      cats.push(this._createCat(scene, spawn, collisionMap, {
-        catId: `cat_${String.fromCharCode(97 + i)}`,
-        behaviorProfile: profileForLevel(this.level, roles[i % roles.length]),
-      }));
-    }
-
-    return cats;
-  }
-
-  _createCat(scene, startPos, collisionMap, options) {
-    const cat = new CatAI(
-      scene,
-      startPos,
-      this.mapWidth,
-      this.mapHeight,
-      collisionMap,
-      { ...options, rooms: this.rooms },
-    );
-    this._wireCatEvents(cat);
-    return cat;
-  }
-
-  _wireCatEvents(cat) {
-    cat
-      .on('state_changed', d  => this._emit('cat_state_changed', d))
-      .on('cat_awoke', d      => this._emit('cat_awoke', d))
-      .on('cat_teleported', d => this._emit('cat_teleported', d))
-      .on('player_caught', d  => this._onPlayerCaught(d))
-      .on('task_completed', d => this._emit('task_completed', d))
-      .on('task_neglected', d => this._emit('task_neglected', d));
-  }
-
-  _serializeCats() {
-    const out = {};
-    for (const cat of this.cats) {
-      out[cat.catId] = cat.serialize();
-    }
-    return out;
-  }
-
   _checkTaskSchedule() {
     while (
       this._taskSchedule.length > 0 &&
       this._elapsed >= this._taskSchedule[0].time
     ) {
       const { task, room } = this._taskSchedule.shift();
-      for (const cat of this.cats) cat.neglectTask(task);
+      this.cat.neglectTask(task);
       this._emit('task_started', { task, room });
     }
   }
 
-  _onPlayerCaught({ playerId, catId }) {
+  _onPlayerCaught({ playerId }) {
     const p = this.players.get(playerId);
     if (p) p.alive = false;
 
-    this._emit('player_caught', { playerId, catId });
+    this._emit('player_caught', { playerId });
 
     // Game over if all players are caught
     const anyAlive = [...this.players.values()].some(p => p.alive);
