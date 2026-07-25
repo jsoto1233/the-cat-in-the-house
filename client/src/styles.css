@@ -1310,3 +1310,64 @@ input {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Background-music control, docked bottom-right. Hover/focus the      */
+/* speaker to slide out the volume slider; click the speaker to mute.  */
+/* ------------------------------------------------------------------ */
+.music-ctl {
+  position: fixed;
+  right: 20px;
+  bottom: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Vertical slider that slides up above the speaker on hover — no chrome. */
+.music-ctl__slider {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  width: 40px;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(6px);
+  transition: height 0.22s ease, opacity 0.22s ease, transform 0.22s ease;
+}
+.music-ctl:hover .music-ctl__slider {
+  height: 110px;
+  opacity: 1;
+  transform: translateY(0);
+}
+.music-ctl__slider input[type="range"] {
+  writing-mode: vertical-lr;
+  direction: rtl; /* drag up = louder */
+  width: 20px;
+  height: 104px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  background: transparent;
+}
+
+.music-ctl__btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.music-ctl__btn:hover {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.music-ctl__btn[aria-pressed="true"] {
+  color: var(--text-dim);
+}
