@@ -32,8 +32,8 @@ export const ROOMS: RoomBounds[] = [
 ];
 
 /** Which room contains world point (x, y), or null if outside every room. */
-export function roomAt(x: number, y: number, rooms: RoomBounds[] = ROOMS): RoomBounds | null {
-  for (const r of rooms) {
+export function roomAt(x: number, y: number): RoomBounds | null {
+  for (const r of ROOMS) {
     if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r;
   }
   return null;
@@ -65,55 +65,26 @@ export class CollisionMap {
    * Tries the full move; if blocked, tries X-only then Y-only.
    */
   resolveMove(fromX: number, fromY: number, toX: number, toY: number): Waypoint {
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const steps = Math.max(2, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / Math.max(this.tileW, this.tileH)));
-
-    let lastSafe: Waypoint = { x: fromX, y: fromY };
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const sampleX = fromX + dx * t;
-      const sampleY = fromY + dy * t;
-      if (this.isWalkable(sampleX, sampleY)) {
-        lastSafe = { x: sampleX, y: sampleY };
-      } else {
-        break;
-      }
-    }
-
-    return lastSafe;
-  }
-
-  /** Find the nearest walkable tile center within a search radius (in tiles). */
-  findNearestWalkable(wx: number, wy: number, maxRing = 6): Waypoint | null {
-    if (this.isWalkable(wx, wy)) return { x: wx, y: wy };
-    for (let ring = 1; ring <= maxRing; ring++) {
-      for (let dx = -ring; dx <= ring; dx++) {
-        for (let dy = -ring; dy <= ring; dy++) {
-          const px = wx + dx * this.tileW;
-          const py = wy + dy * this.tileH;
-          if (this.isWalkable(px, py)) return { x: px, y: py };
-        }
-      }
-    }
-    return null;
+    if (this.isWalkable(toX, toY)) return { x: toX, y: toY };
+    if (this.isWalkable(toX, fromY)) return { x: toX, y: fromY };
+    if (this.isWalkable(fromX, toY)) return { x: fromX, y: toY };
+    return { x: fromX, y: fromY };
   }
 
   /** World-space waypoints from start → goal via tile-grid A* ([] if none). */
   findPath(fromX: number, fromY: number, goalX: number, goalY: number): Waypoint[] {
-    const goal = this.findNearestWalkable(goalX, goalY);
-    if (!goal || !this.isWalkable(fromX, fromY)) return [];
+    if (!this.isWalkable(fromX, fromY) || !this.isWalkable(goalX, goalY)) return [];
 
     const start = this.toTile(fromX, fromY);
-    const goalTile = this.toTile(goal.x, goal.y);
-    if (start.row === goalTile.row && start.col === goalTile.col) return [];
+    const goal = this.toTile(goalX, goalY);
+    if (start.row === goal.row && start.col === goal.col) return [];
 
     const startKey = this.key(start.row, start.col);
-    const goalKey = this.key(goalTile.row, goalTile.col);
+    const goalKey = this.key(goal.row, goal.col);
     const openSet = new Set<string>([startKey]);
     const cameFrom = new Map<string, string>();
     const gScore = new Map<string, number>([[startKey, 0]]);
-    const fScore = new Map<string, number>([[startKey, this.heuristic(start, goalTile)]]);
+    const fScore = new Map<string, number>([[startKey, this.heuristic(start, goal)]]);
 
     while (openSet.size > 0) {
       let currentKey: string | null = null;
@@ -148,7 +119,7 @@ export class CollisionMap {
 
         cameFrom.set(neighborKey, currentKey);
         gScore.set(neighborKey, tentativeG);
-        fScore.set(neighborKey, tentativeG + this.heuristic(neighbor, goalTile));
+        fScore.set(neighborKey, tentativeG + this.heuristic(neighbor, goal));
         openSet.add(neighborKey);
       }
     }

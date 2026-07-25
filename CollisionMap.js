@@ -26,23 +26,19 @@ export class CollisionMap {
    * Returns { x, y } — the resolved destination.
    */
   resolveMove(fromX, fromY, toX, toY) {
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const steps = Math.max(2, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / Math.max(this.tileW, this.tileH)));
-
-    let lastSafe = { x: fromX, y: fromY };
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const sampleX = fromX + dx * t;
-      const sampleY = fromY + dy * t;
-      if (this.isWalkable(sampleX, sampleY)) {
-        lastSafe = { x: sampleX, y: sampleY };
-      } else {
-        break;
-      }
+    if (this.isWalkable(toX, toY)) {
+      return { x: toX, y: toY };
     }
 
-    return lastSafe;
+    if (this.isWalkable(toX, fromY)) {
+      return { x: toX, y: fromY };
+    }
+
+    if (this.isWalkable(fromX, toY)) {
+      return { x: fromX, y: toY };
+    }
+
+    return { x: fromX, y: fromY };
   }
 
   /**
