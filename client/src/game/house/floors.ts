@@ -356,7 +356,13 @@ function layoutWalkableRects(layout: FloorLayout): Rect[] {
       w: r.w - ROOM_INSET * 2,
       h: r.h - ROOM_INSET * 2
     })),
-    ...layout.connectors
+    ...layout.connectors.map((c) => ({
+      ...c,
+      x: c.x + 2,
+      y: c.y + 2,
+      w: Math.max(8, c.w - 4),
+      h: Math.max(8, c.h - 4)
+    }))
   ];
 }
 
