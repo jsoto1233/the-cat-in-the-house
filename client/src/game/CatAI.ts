@@ -112,6 +112,7 @@ export class CatAI {
   private forceReeval = false;
   private lastSeenElapsed = 0;
   private stalkWaitTimer = 0;
+  private chaseTargetId: string | null = null;
   private patrolWaypoints: Waypoint[] = [];
   private patrolIndex = 0;
   private patrolRoomKey: string | null = null;
@@ -198,6 +199,7 @@ export class CatAI {
     this.forceReeval = false;
     this.lastSeenElapsed = 0;
     this.stalkWaitTimer = 0;
+    this.chaseTargetId = null;
     this.patrolWaypoints = [];
     this.patrolIndex = 0;
     this.patrolRoomKey = null;
@@ -328,8 +330,22 @@ export class CatAI {
   private move(dt: number, players: AiPlayer[]): void {
     const player = this.preferredPlayer(players) || this.nearestPlayer(players);
     if (!player) {
+      this.chaseTargetId = null;
       this.clampPosition();
       return;
+    }
+
+    // Someone left play (escaped/died) or focus swapped — drop old pathing and
+    // commit to chasing the remaining player immediately (avoids door-room patrol loops).
+    if (this.chaseTargetId !== player.id) {
+      this.chaseTargetId = player.id;
+      this.path = [];
+      this.pathGoal = null;
+      this.targetPosition = null;
+      this.stalkWaitTimer = 0;
+      this.lastSeenElapsed = this.elapsed;
+      this.forceReeval = true;
+      if (this.isHunting) this.currentBehavior = "HUNT";
     }
 
     const tile = this.tile();
@@ -538,15 +554,18 @@ export class CatAI {
 
   private preferredPlayer(players: AiPlayer[]): AiPlayer | null {
     if (!this.preferredPlayerId) return null;
-    return players.find((p) => p.id === this.preferredPlayerId) || null;
+    const preferred =
+      players.find((p) => p.id === this.preferredPlayerId && p.alive) || null;
+    if (!preferred) this.preferredPlayerId = null;
+    return preferred;
   }
 
   private nearestPlayer(players: AiPlayer[]): AiPlayer | null {
     if (!players || players.length === 0) return null;
-    return players.reduce<AiPlayer | null>(
-      (best, p) => (best === null || this.dist(p) < this.dist(best) ? p : best),
-      null
-    );
+    return players.reduce<AiPlayer | null>((best, p) => {
+      if (!p.alive) return best;
+      return best === null || this.dist(p) < this.dist(best) ? p : best;
+    }, null);
   }
 
   private dist(pos: Waypoint): number {
