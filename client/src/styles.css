@@ -1050,6 +1050,52 @@ input {
   }
 }
 
+.escape-toast {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  z-index: 16;
+  transform: translateX(-50%);
+  max-width: min(90%, 420px);
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 8, 12, 0.88);
+  color: var(--text);
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  pointer-events: none;
+  animation: escape-toast-in 0.25s ease both;
+}
+
+.spectate-banner {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 15;
+  transform: translateX(-50%);
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 8, 12, 0.78);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+@keyframes escape-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* ---------- Difficulty selector (main menu) ---------- */
 
 .difficulty {

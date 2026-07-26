@@ -38,6 +38,7 @@ export interface GameSyncState {
   collectedLoot: number[];
   hasKey?: boolean;
   openedInteractables?: string[];
+  escapedPlayers?: string[];
   cat: { x: number; y: number; mood: string };
   playerLives: Record<string, number>;
   timeLeftMs: number;

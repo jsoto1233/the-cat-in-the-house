@@ -96,6 +96,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   private hasKey = false;
   private playerLives = new Map<string, number>();
   private playerInvuln = new Map<string, number>();
+  private escapedPlayers = new Set<string>();
   private matchEnded = false;
   private lastMood: PreviewMood = "calm";
   private lastAtticUnlocked = false;
@@ -192,7 +193,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
     if (this.multiplayer && !this.isHost) {
       this.tickInvuln(dt);
-      if (this.isPlayerAlive(this.localId)) {
+      if (this.isPlayerActive(this.localId)) {
         this.movePlayer(dt);
         this.checkLocalPickups();
         this.checkInteractInputRemote();
@@ -205,7 +206,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
 
     this.tickInvuln(dt);
-    if (this.isPlayerAlive(this.localId)) {
+    if (this.isPlayerActive(this.localId)) {
       this.movePlayer(dt);
     }
 
@@ -244,15 +245,15 @@ export class PlayableHouseScene extends Phaser.Scene {
       return;
     }
     const pos = this.getPlayerPosition(playerId);
-    if (!pos || !this.isPlayerAlive(playerId)) return;
+    if (!pos || !this.isPlayerActive(playerId)) return;
     const buffer = playerId === this.localId ? 0 : REMOTE_PICKUP_BUFFER;
     if (!this.overlapsPickup(pos.x, pos.y, coin.x, coin.y, buffer)) return;
     this.collectCoin(coinIndex, playerId, true);
   }
 
   setRemotePosition(id: string, x: number, y: number) {
-    if (id === this.localId) return;
-    const alive = this.isPlayerAlive(id);
+    if (id === this.localId || this.hasEscaped(id)) return;
+    const alive = this.isPlayerActive(id);
     let pos = this.remotePositions.get(id);
     if (!pos) {
       pos = { x, y, tx: x, ty: y, alive };
@@ -283,6 +284,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     collectedLoot: number[];
     hasKey?: boolean;
     openedInteractables?: string[];
+    escapedPlayers?: string[];
     cat: { x: number; y: number; mood: string };
     playerLives: Record<string, number>;
     timeLeftMs: number;
@@ -324,13 +326,20 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.cat.y = state.cat.y;
       this.catContainer.setPosition(state.cat.x, state.cat.y);
     }
+    this.applyEscapedPlayers(state.escapedPlayers ?? []);
     for (const [id, p] of Object.entries(state.players)) {
       if (id === this.localId) continue;
       const existing = this.remotePositions.get(id);
       if (existing) {
-        existing.alive = p.alive;
+        existing.alive = p.alive && !this.hasEscaped(id);
       } else {
-        this.remotePositions.set(id, { x: p.x, y: p.y, tx: p.x, ty: p.y, alive: p.alive });
+        this.remotePositions.set(id, {
+          x: p.x,
+          y: p.y,
+          tx: p.x,
+          ty: p.y,
+          alive: p.alive && !this.hasEscaped(id)
+        });
         this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
       }
     }
@@ -373,7 +382,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private movePlayer(dt: number) {
-    if (!this.isPlayerAlive(this.localId)) return;
+    if (!this.isPlayerActive(this.localId)) return;
     let dx = 0;
     let dy = 0;
     if (this.keys.left.isDown || this.keys.a.isDown) dx -= 1;
@@ -400,7 +409,7 @@ export class PlayableHouseScene extends Phaser.Scene {
         id: this.localId,
         x: this.playerX,
         y: this.playerY,
-        alive: this.isPlayerAlive(this.localId)
+        alive: this.isPlayerActive(this.localId)
       }
     ];
     for (const [id, pos] of this.remotePositions) {
@@ -409,7 +418,7 @@ export class PlayableHouseScene extends Phaser.Scene {
         id,
         x: pos.x,
         y: pos.y,
-        alive: this.isPlayerAlive(id)
+        alive: this.isPlayerActive(id)
       });
     }
     return states;
@@ -417,6 +426,54 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private isPlayerAlive(id: string) {
     return (this.playerLives.get(id) ?? LIVES_TOTAL) > 0;
+  }
+
+  private hasEscaped(id: string) {
+    return this.escapedPlayers.has(id);
+  }
+
+  /** Still in play on this floor (has lives and has not escaped yet). */
+  private isPlayerActive(id: string) {
+    return this.isPlayerAlive(id) && !this.hasEscaped(id);
+  }
+
+  private anyoneStillActive() {
+    return this.playerIds.some((id) => this.isPlayerActive(id));
+  }
+
+  private applyEscapedPlayers(ids: string[]) {
+    for (const id of ids) {
+      if (this.escapedPlayers.has(id)) continue;
+      this.markEscaped(id, true);
+    }
+  }
+
+  private markEscaped(id: string, announce = true) {
+    if (this.escapedPlayers.has(id) || this.matchEnded) return;
+    this.escapedPlayers.add(id);
+
+    if (id === this.localId) {
+      this.playerContainer.setVisible(false);
+    } else {
+      const pos = this.remotePositions.get(id);
+      if (pos) pos.alive = false;
+      this.remotePlayers.get(id)?.setVisible(false);
+    }
+
+    if (announce) {
+      this.game.events.emit("player:escaped", {
+        playerId: id,
+        floor: this.currentFloor
+      });
+    }
+
+    // Only the host / single-player authority decides when the floor clears.
+    if (!this.multiplayer || this.isHost) {
+      this.pushHostSync();
+      if (!this.anyoneStillActive() && this.cashFound >= CASH_TOTAL) {
+        this.endMatch("escaped");
+      }
+    }
   }
 
   private tickInvuln(dt: number) {
@@ -440,7 +497,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       pos.x = Phaser.Math.Linear(pos.x, pos.tx, blend);
       pos.y = Phaser.Math.Linear(pos.y, pos.ty, blend);
       container.setPosition(pos.x, pos.y);
-      container.setVisible(pos.alive);
+      container.setVisible(this.isPlayerActive(id));
     }
   }
 
@@ -510,13 +567,13 @@ export class PlayableHouseScene extends Phaser.Scene {
     players[this.localId] = {
       x: this.playerX,
       y: this.playerY,
-      alive: this.isPlayerAlive(this.localId)
+      alive: this.isPlayerActive(this.localId)
     };
     for (const [id, pos] of this.remotePositions) {
       players[id] = {
         x: pos.x,
         y: pos.y,
-        alive: this.isPlayerAlive(id)
+        alive: this.isPlayerActive(id)
       };
     }
     return {
@@ -526,6 +583,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       collectedLoot: this.money.map((m, i) => (m.collected ? i : -1)).filter((i) => i >= 0),
       hasKey: this.hasKey,
       openedInteractables: this.interactables.filter((i) => i.opened).map((i) => i.def.id),
+      escapedPlayers: [...this.escapedPlayers],
       cat: { x: this.cat.x, y: this.cat.y, mood: this.cat.mood },
       playerLives: Object.fromEntries(this.playerLives),
       timeLeftMs: this.getTimeLeftMs?.() ?? 60000,
@@ -557,11 +615,13 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private checkInteractInput() {
+    if (!this.isPlayerActive(this.localId)) return;
     if (!Phaser.Input.Keyboard.JustDown(this.keys.e)) return;
     this.tryInteractAt(this.localId, this.playerX, this.playerY);
   }
 
   private checkInteractInputRemote() {
+    if (!this.isPlayerActive(this.localId)) return;
     if (!Phaser.Input.Keyboard.JustDown(this.keys.e)) return;
     this.onInteract?.();
   }
@@ -620,6 +680,10 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private updateInteractPrompt() {
+    if (!this.isPlayerActive(this.localId)) {
+      this.interactPrompt.setVisible(false);
+      return;
+    }
     const target = this.getNearestInteractable(this.playerX, this.playerY);
     if (!target || target.opened) {
       this.interactPrompt.setVisible(false);
@@ -690,9 +754,11 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.catContainer.setPosition(this.cat.x, this.cat.y);
       this.cat.calm(25);
 
-      const anyoneLeft = [...this.playerLives.values()].some((n) => n > 0);
-      if (!anyoneLeft) {
-        this.endMatch("caught");
+      // After the loot goal, wiping the last active player still clears the floor.
+      // Before the loot goal, everyone dead means a full loss.
+      if (!this.anyoneStillActive()) {
+        if (this.cashFound >= CASH_TOTAL) this.endMatch("escaped");
+        else this.endMatch("caught");
       }
       this.pushHostSync();
       return;
@@ -702,12 +768,11 @@ export class PlayableHouseScene extends Phaser.Scene {
   private checkEscape() {
     if (this.cashFound < CASH_TOTAL) return;
     for (const p of this.getAllPlayerStates()) {
-      if (!p.alive) continue;
+      if (!p.alive || this.hasEscaped(p.id)) continue;
       const dx = p.x - this.backDoor.x;
       const dy = p.y - this.backDoor.y;
       if (Math.sqrt(dx * dx + dy * dy) <= ESCAPE_RADIUS) {
-        this.endMatch("escaped");
-        return;
+        this.markEscaped(p.id, true);
       }
     }
   }
@@ -721,23 +786,28 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private updateInvulnVisual() {
-    const alive = this.isPlayerAlive(this.localId);
-    const invuln = (this.playerInvuln.get(this.localId) ?? 0) > 0;
-    if (!alive) {
-      this.playerContainer.setAlpha(0.35);
-      return;
-    }
-    this.playerContainer.setAlpha(
-      invuln ? 0.45 + 0.35 * Math.sin(this.time.now / 60) : 1
-    );
-    for (const [id, container] of this.remotePlayers) {
-      const remoteAlive = this.isPlayerAlive(id);
-      const remoteInvuln = (this.playerInvuln.get(id) ?? 0) > 0;
-      if (!remoteAlive) {
-        container.setAlpha(0.35);
+    if (this.hasEscaped(this.localId)) {
+      this.playerContainer.setVisible(false);
+    } else {
+      this.playerContainer.setVisible(true);
+      const alive = this.isPlayerAlive(this.localId);
+      const invuln = (this.playerInvuln.get(this.localId) ?? 0) > 0;
+      if (!alive) {
+        this.playerContainer.setAlpha(0.35);
       } else {
-        container.setAlpha(remoteInvuln ? 0.45 + 0.35 * Math.sin(this.time.now / 60) : 1);
+        this.playerContainer.setAlpha(
+          invuln ? 0.45 + 0.35 * Math.sin(this.time.now / 60) : 1
+        );
       }
+    }
+    for (const [id, container] of this.remotePlayers) {
+      if (this.hasEscaped(id) || !this.isPlayerAlive(id)) {
+        container.setVisible(false);
+        continue;
+      }
+      container.setVisible(true);
+      const remoteInvuln = (this.playerInvuln.get(id) ?? 0) > 0;
+      container.setAlpha(remoteInvuln ? 0.45 + 0.35 * Math.sin(this.time.now / 60) : 1);
     }
   }
 
