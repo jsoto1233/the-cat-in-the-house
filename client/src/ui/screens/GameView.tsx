@@ -54,6 +54,7 @@ export function GameView() {
   const isHost = !isMultiplayer || client.localId === hostId;
 
   const [paused, setPaused] = useState(false);
+  const [pausedBy, setPausedBy] = useState<string | null>(null);
   const [timeLeftMs, setTimeLeftMs] = useState(
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
@@ -80,6 +81,30 @@ export function GameView() {
   }, [timeLeftMs, setMatchTimeLeftMs]);
 
   const gameplayPaused = paused || gameOver;
+  const canResume = !isMultiplayer || !pausedBy || pausedBy === (client.localId || localId);
+
+  const requestPause = () => {
+    if (gameOver) return;
+    if (isMultiplayer) client.socket.sendPause();
+    else setPaused(true);
+  };
+
+  const requestResume = () => {
+    if (gameOver) return;
+    if (isMultiplayer) {
+      if (canResume) client.socket.sendResume();
+      return;
+    }
+    setPaused(false);
+  };
+
+  useEffect(() => {
+    if (!isMultiplayer) return;
+    return client.onPauseState(({ paused: isPaused, pausedBy: by }) => {
+      setPaused(isPaused);
+      setPausedBy(isPaused ? by : null);
+    });
+  }, [isMultiplayer, client]);
 
   useEffect(() => {
     if (!floorSplash) return;
@@ -112,6 +137,8 @@ export function GameView() {
     if (!container) return;
 
     setGameOver(false);
+    setPaused(false);
+    setPausedBy(null);
     setTimeLeftMs(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
     if (floor > 1) setFloorSplash(true);
 
@@ -234,11 +261,13 @@ export function GameView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !gameOver) setPaused((p) => !p);
+      if (e.key !== "Escape" || gameOver) return;
+      if (paused) requestResume();
+      else requestPause();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [gameOver]);
+  }, [gameOver, paused, isMultiplayer, canResume, client, localId]);
 
   useEffect(() => {
     const scene = gameRef.current?.scene;
@@ -259,7 +288,7 @@ export function GameView() {
           livesTotal={preview.livesTotal}
           floor={floor}
           floorTotal={floorTotal}
-          onPause={() => setPaused(true)}
+          onPause={requestPause}
         />
 
         <div className="game__stage">
@@ -289,7 +318,8 @@ export function GameView() {
 
           <PauseOverlay
             open={paused}
-            onResume={() => setPaused(false)}
+            canResume={canResume}
+            onResume={requestResume}
             onLeave={leaveToMenu}
           />
         </div>
