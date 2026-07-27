@@ -1424,3 +1424,59 @@ input {
 .music-ctl__btn[aria-pressed="true"] {
   color: var(--text-dim);
 }
+
+/* ------------------------------------------------------------------ */
+/* "Click to enter" gate. The click that dismisses it is also the user */
+/* gesture that unlocks the background music, so it starts right away. */
+/* ------------------------------------------------------------------ */
+.start-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(10, 10, 16, 0.92),
+    rgba(3, 3, 6, 0.98)
+  );
+  backdrop-filter: blur(2px);
+  animation: splash-in 0.4s ease-out;
+}
+.start-splash__inner {
+  text-align: center;
+  user-select: none;
+  padding: 2rem;
+}
+.start-splash__title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #e0294a;
+  text-shadow: 0 0 18px rgba(224, 41, 74, 0.55), 0 0 40px rgba(196, 30, 58, 0.35);
+}
+.start-splash__hint {
+  margin: 1.2rem 0 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  animation: splash-pulse 1.6s ease-in-out infinite;
+}
+@keyframes splash-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes splash-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .start-splash,
+  .start-splash__hint {
+    animation: none;
+  }
+}

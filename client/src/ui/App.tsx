@@ -5,6 +5,7 @@ import { GameView } from "./screens/GameView";
 import { Credits } from "./screens/Credits";
 import { EndScreen } from "./screens/EndScreen";
 import { MusicPlayer } from "./components/MusicPlayer";
+import { StartSplash } from "./components/StartSplash";
 
 export function App() {
   const { screen, gameSessionKey } = useGame();
@@ -33,6 +34,8 @@ export function App() {
       {current}
       {/* Always mounted so the music keeps playing across screen changes. */}
       <MusicPlayer />
+      {/* First-click gate: dismissing it unlocks + starts the music. */}
+      <StartSplash />
     </>
   );
 }
