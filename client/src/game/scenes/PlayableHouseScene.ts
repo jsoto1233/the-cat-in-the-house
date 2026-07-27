@@ -754,10 +754,10 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.catContainer.setPosition(this.cat.x, this.cat.y);
       this.cat.calm(25);
 
-      // After the loot goal, wiping the last active player still clears the floor.
-      // Before the loot goal, everyone dead means a full loss.
+      // Floor only clears if at least one player escaped. If everyone dies
+      // with no escapes (even after the loot goal), it's a full loss.
       if (!this.anyoneStillActive()) {
-        if (this.cashFound >= CASH_TOTAL) this.endMatch("escaped");
+        if (this.escapedPlayers.size > 0) this.endMatch("escaped");
         else this.endMatch("caught");
       }
       this.pushHostSync();
