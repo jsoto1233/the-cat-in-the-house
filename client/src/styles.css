@@ -774,38 +774,6 @@ input {
   color: var(--warning);
 }
 
-/* ---------- Credits ---------- */
-
-.credits-premise {
-  margin: 0 0 1rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.55;
-  text-align: center;
-}
-
-.credits-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.credits-list li {
-  display: flex;
-  flex-direction: column;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel-2);
-}
-
-.credits-list .role {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
 
 /* ---------- HUD: lives, cash ---------- */
 
