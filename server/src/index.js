@@ -38,9 +38,28 @@ function broadcastRoom(room) {
   io.to(room.code).emit("room_update", roomPayload(room));
 }
 
+function pausePayload(room) {
+  return {
+    paused: !!room.paused,
+    pausedBy: room.pausedBy ?? null
+  };
+}
+
+function broadcastPause(room) {
+  io.to(room.code).emit("pause_state", pausePayload(room));
+}
+
+function clearPause(room) {
+  if (!room.paused && !room.pausedBy) return;
+  room.paused = false;
+  room.pausedBy = null;
+  broadcastPause(room);
+}
+
 function removeFromRoom(socket) {
   const room = getRoom(socket);
   if (!room) return;
+  const wasPauser = room.pausedBy === socket.id;
   room.players.delete(socket.id);
   socket.leave(room.code);
   delete socket.data.roomCode;
@@ -51,6 +70,7 @@ function removeFromRoom(socket) {
   if (room.hostId === socket.id) {
     room.hostId = room.players.keys().next().value;
   }
+  if (wasPauser) clearPause(room);
   broadcastRoom(room);
 }
 
@@ -67,6 +87,8 @@ io.on("connection", (socket) => {
       code: id,
       hostId: socket.id,
       inGame: false,
+      paused: false,
+      pausedBy: null,
       difficulty: "normal",
       players: new Map(),
       timeLeftMs: 60000,
@@ -143,6 +165,8 @@ io.on("connection", (socket) => {
       if (!p.ready) return;
     }
     room.inGame = true;
+    room.paused = false;
+    room.pausedBy = null;
     room.floor = 1;
     room.timeLeftMs = room.difficulty === "ludicrous" ? 30000 : 60000;
     io.to(room.code).emit("game_start", {
@@ -152,10 +176,24 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("pause_game", () => {
+    const room = getRoom(socket);
+    if (!room?.inGame || !room.players.has(socket.id) || room.paused) return;
+    room.paused = true;
+    room.pausedBy = socket.id;
+    broadcastPause(room);
+  });
+
+  socket.on("resume_game", () => {
+    const room = getRoom(socket);
+    if (!room?.inGame || !room.paused || room.pausedBy !== socket.id) return;
+    clearPause(room);
+  });
+
   socket.on("player_move", ({ x, y }) => {
     const room = getRoom(socket);
     const player = room?.players.get(socket.id);
-    if (!room?.inGame || !player) return;
+    if (!room?.inGame || room.paused || !player) return;
     player.x = x;
     player.y = y;
     socket.to(room.code).emit("player_move", { id: socket.id, x, y });
@@ -163,7 +201,7 @@ io.on("connection", (socket) => {
 
   socket.on("player_interact", () => {
     const room = getRoom(socket);
-    if (!room?.inGame) return;
+    if (!room?.inGame || room.paused) return;
     io.in(room.code).emit("player_interact", { id: socket.id });
   });
 
@@ -180,13 +218,15 @@ io.on("connection", (socket) => {
   socket.on("game_over", ({ outcome }) => {
     const room = getRoom(socket);
     if (!room?.inGame || socket.id !== room.hostId) return;
+    room.paused = false;
+    room.pausedBy = null;
     io.to(room.code).emit("game_over", { outcome });
     room.inGame = false;
   });
 
   socket.on("coin_pickup", ({ coinIndex }) => {
     const room = getRoom(socket);
-    if (!room?.inGame) return;
+    if (!room?.inGame || room.paused) return;
     io.to(room.hostId).emit("coin_pickup", { id: socket.id, coinIndex: Number(coinIndex) });
   });
 

@@ -39,7 +39,9 @@ export function GameView() {
     floorTotal,
     advanceFloor,
     playerLives,
-    setPlayerLives
+    setPlayerLives,
+    room,
+    playerName
   } = useGame();
 
   const isTopFloor = floor >= floorTotal;
@@ -49,17 +51,25 @@ export function GameView() {
   const timeLeftRef = useRef(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
   const setTimeLeftRef = useRef<(ms: number) => void>(() => {});
   const setPlayerLivesRef = useRef(setPlayerLives);
+  const roomRef = useRef(room);
+  const playerNameRef = useRef(playerName);
 
   const isMultiplayer = !!hostId && connected;
   const isHost = !isMultiplayer || client.localId === hostId;
 
   const [paused, setPaused] = useState(false);
+  const [pausedBy, setPausedBy] = useState<string | null>(null);
   const [timeLeftMs, setTimeLeftMs] = useState(
     () => matchTimeLeftMs ?? matchMsForDifficulty(difficulty)
   );
   const [gameOver, setGameOver] = useState(false);
+  const [escapeToast, setEscapeToast] = useState<string | null>(null);
+  const [spectating, setSpectating] = useState(false);
   // Brief "Floor N" splash shown at the start of every floor after the first.
   const [floorSplash, setFloorSplash] = useState(floor > 1);
+
+  roomRef.current = room;
+  playerNameRef.current = playerName;
   const [preview, setPreview] = useState<PreviewState>({
     cashFound: 0,
     cashTotal: 10,
@@ -80,12 +90,42 @@ export function GameView() {
   }, [timeLeftMs, setMatchTimeLeftMs]);
 
   const gameplayPaused = paused || gameOver;
+  const canResume = !isMultiplayer || !pausedBy || pausedBy === (client.localId || localId);
+
+  const requestPause = () => {
+    if (gameOver) return;
+    if (isMultiplayer) client.socket.sendPause();
+    else setPaused(true);
+  };
+
+  const requestResume = () => {
+    if (gameOver) return;
+    if (isMultiplayer) {
+      if (canResume) client.socket.sendResume();
+      return;
+    }
+    setPaused(false);
+  };
+
+  useEffect(() => {
+    if (!isMultiplayer) return;
+    return client.onPauseState(({ paused: isPaused, pausedBy: by }) => {
+      setPaused(isPaused);
+      setPausedBy(isPaused ? by : null);
+    });
+  }, [isMultiplayer, client]);
 
   useEffect(() => {
     if (!floorSplash) return;
     const id = window.setTimeout(() => setFloorSplash(false), 1700);
     return () => window.clearTimeout(id);
   }, [floorSplash]);
+
+  useEffect(() => {
+    if (!escapeToast) return;
+    const id = window.setTimeout(() => setEscapeToast(null), 2800);
+    return () => window.clearTimeout(id);
+  }, [escapeToast]);
 
   const normalFastPhase =
     difficulty === "normal" && timeLeftMs <= MATCH_MS_NORMAL_FAST_THRESHOLD;
@@ -112,6 +152,10 @@ export function GameView() {
     if (!container) return;
 
     setGameOver(false);
+    setPaused(false);
+    setPausedBy(null);
+    setEscapeToast(null);
+    setSpectating(false);
     setTimeLeftMs(matchTimeLeftMs ?? matchMsForDifficulty(difficulty));
     if (floor > 1) setFloorSplash(true);
 
@@ -212,20 +256,33 @@ export function GameView() {
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
       if (outcome === "escaped" && floor < floorTotal) {
         setGameOver(true);
+        setSpectating(false);
         if (!mp) advanceFloor();
         return;
       }
       setGameOver(true);
+      setSpectating(false);
       setOutcome(outcome);
       navigate("end");
+    };
+    const onPlayerEscaped = ({ playerId, floor: escapedFloor }: { playerId: string; floor: number }) => {
+      const selfId = client.localId || localId;
+      const name =
+        roomRef.current?.players[playerId]?.name ||
+        (playerId === selfId ? playerNameRef.current : null) ||
+        "A player";
+      setEscapeToast(`${name} has escaped floor ${escapedFloor}.`);
+      if (playerId === selfId) setSpectating(true);
     };
 
     game.events.on("preview:update", onPreview);
     game.events.on("match:over", onMatchOver);
+    game.events.on("player:escaped", onPlayerEscaped);
 
     return () => {
       game.events.off("preview:update", onPreview);
       game.events.off("match:over", onMatchOver);
+      game.events.off("player:escaped", onPlayerEscaped);
       client.detachScene();
       game.destroy(true);
       gameRef.current = null;
@@ -234,11 +291,13 @@ export function GameView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !gameOver) setPaused((p) => !p);
+      if (e.key !== "Escape" || gameOver) return;
+      if (paused) requestResume();
+      else requestPause();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [gameOver]);
+  }, [gameOver, paused, isMultiplayer, canResume, client, localId]);
 
   useEffect(() => {
     const scene = gameRef.current?.scene;
@@ -259,7 +318,7 @@ export function GameView() {
           livesTotal={preview.livesTotal}
           floor={floor}
           floorTotal={floorTotal}
-          onPause={() => setPaused(true)}
+          onPause={requestPause}
         />
 
         <div className="game__stage">
@@ -280,6 +339,18 @@ export function GameView() {
             </div>
           )}
 
+          {escapeToast && (
+            <div className="escape-toast" role="status">
+              {escapeToast}
+            </div>
+          )}
+
+          {spectating && !gameOver && (
+            <div className="spectate-banner" role="status">
+              Waiting for other players…
+            </div>
+          )}
+
           {preview.difficulty === "ludicrous" && (
             <>
               <div className="ludicrous-fx" aria-hidden="true" />
@@ -289,7 +360,8 @@ export function GameView() {
 
           <PauseOverlay
             open={paused}
-            onResume={() => setPaused(false)}
+            canResume={canResume}
+            onResume={requestResume}
             onLeave={leaveToMenu}
           />
         </div>

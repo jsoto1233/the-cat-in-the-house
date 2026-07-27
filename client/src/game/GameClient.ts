@@ -19,6 +19,12 @@ type PlayerMoveHandler = (payload: { id: string; x: number; y: number }) => void
 type PlayerInteractHandler = (payload: { id: string }) => void;
 type AdvanceFloorHandler = (payload: AdvanceFloorPayload) => void;
 type CoinPickupHandler = (payload: { id: string; coinIndex: number }) => void;
+type PauseStateHandler = (payload: PauseState) => void;
+
+export interface PauseState {
+  paused: boolean;
+  pausedBy: string | null;
+}
 
 export interface AdvanceFloorPayload {
   floor: number;
@@ -32,6 +38,7 @@ export interface GameSyncState {
   collectedLoot: number[];
   hasKey?: boolean;
   openedInteractables?: string[];
+  escapedPlayers?: string[];
   cat: { x: number; y: number; mood: string };
   playerLives: Record<string, number>;
   timeLeftMs: number;
@@ -103,6 +110,14 @@ class GameSocket {
   sendCoinPickup(coinIndex: number): void {
     this.ioSocket.emit("coin_pickup", { coinIndex });
   }
+
+  sendPause(): void {
+    this.ioSocket.emit("pause_game");
+  }
+
+  sendResume(): void {
+    this.ioSocket.emit("resume_game");
+  }
 }
 
 export class GameClient {
@@ -122,6 +137,7 @@ export class GameClient {
   private playerInteractHandlers = new Set<PlayerInteractHandler>();
   private advanceFloorHandlers = new Set<AdvanceFloorHandler>();
   private coinPickupHandlers = new Set<CoinPickupHandler>();
+  private pauseStateHandlers = new Set<PauseStateHandler>();
   private sceneUnsubs: Array<() => void> = [];
 
   constructor() {
@@ -172,6 +188,10 @@ export class GameClient {
 
     this.ioSocket.on("coin_pickup", (payload: { id: string; coinIndex: number }) => {
       this.coinPickupHandlers.forEach((cb) => cb(payload));
+    });
+
+    this.ioSocket.on("pause_state", (payload: PauseState) => {
+      this.pauseStateHandlers.forEach((cb) => cb(payload));
     });
 
     this.ioSocket.on("room_error", ({ message }: { message: string }) => {
@@ -273,6 +293,11 @@ export class GameClient {
   onCoinPickup(cb: CoinPickupHandler): () => void {
     this.coinPickupHandlers.add(cb);
     return () => this.coinPickupHandlers.delete(cb);
+  }
+
+  onPauseState(cb: PauseStateHandler): () => void {
+    this.pauseStateHandlers.add(cb);
+    return () => this.pauseStateHandlers.delete(cb);
   }
 
   mountGame(_containerId: string): void {}
