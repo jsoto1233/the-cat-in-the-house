@@ -14,7 +14,7 @@ export interface PreviewState {
   difficulty: PreviewDifficulty;
 }
 
-export type MatchOutcome = "escaped" | "caught";
+export type MatchOutcome = "escaped" | "caught" | "timeout";
 
 export interface Rect {
   x: number;

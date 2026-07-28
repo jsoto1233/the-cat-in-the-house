@@ -141,6 +141,12 @@ export function GameView() {
 
   useEffect(() => {
     if (!isHost || timeLeftMs > 0 || gameOver) return;
+    const scene = gameRef.current?.scene.getScene("HousePreview") as PlayableHouseScene | undefined;
+    if (scene) {
+      // Scene decides: advance with escapees if anyone left, else full timeout.
+      scene.handleTimeExpired();
+      return;
+    }
     setGameOver(true);
     setOutcome("timeout");
     if (isMultiplayer) client.socket.sendGameOver("timeout");
