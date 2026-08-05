@@ -9,6 +9,8 @@ import {
   INTERACT_RADIUS,
   INVULN_SECONDS,
   LIVES_TOTAL,
+  WORLD_H,
+  WORLD_W,
   maxLives,
   startingLives,
   PALETTE,
@@ -30,6 +32,7 @@ import {
   type FloorLayout
 } from "../house/floors";
 import { playCatchSound } from "../sfx";
+import { DevLevel, getDevState } from "../devAccess";
 import {
   applyOpenedVisual,
   buildCat,
@@ -85,6 +88,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private playerContainer!: Phaser.GameObjects.Container;
   private catContainer!: Phaser.GameObjects.Container;
+  private debugGfx?: Phaser.GameObjects.Graphics;
 
   private playerX = PLAYER_SPAWN.x;
   private playerY = PLAYER_SPAWN.y;
@@ -187,10 +191,71 @@ export class PlayableHouseScene extends Phaser.Scene {
   shutdown() {
     const detachNetwork = this.registry.get("detachNetwork") as (() => void) | undefined;
     detachNetwork?.();
+    this.debugGfx?.destroy();
+    this.debugGfx = undefined;
+  }
+
+  /**
+   * Level 1 visualisation: collision grid, entity hitboxes and the cat's
+   * current A* path. Purely drawn on top — it changes nothing about the sim.
+   */
+  private drawDebug(dev: ReturnType<typeof getDevState> | null) {
+    if (!dev || (!dev.showGrid && !dev.showHitboxes && !dev.showPaths)) {
+      this.debugGfx?.clear();
+      return;
+    }
+    if (!this.debugGfx) this.debugGfx = this.add.graphics().setDepth(50);
+    const g = this.debugGfx;
+    g.clear();
+
+    if (dev.showGrid) {
+      const { grid, tileW, tileH } = this.collisionMap;
+      g.fillStyle(0xff3355, 0.16);
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          if (!grid[r][c]) g.fillRect(c * tileW, r * tileH, tileW, tileH);
+        }
+      }
+    }
+
+    if (dev.showHitboxes) {
+      g.lineStyle(1, 0x4affa0, 0.9);
+      g.strokeCircle(this.playerX, this.playerY, PLAYER_BODY_RADIUS);
+      g.lineStyle(1, 0xff5c5c, 0.9);
+      g.strokeCircle(this.cat.x, this.cat.y, CATCH_RADIUS);
+      g.lineStyle(1, 0xffd633, 0.8);
+      for (const m of this.money) {
+        if (!m.collected) g.strokeCircle(m.x, m.y, COIN_PICKUP_RADIUS);
+      }
+      g.lineStyle(1, 0x6fc7ff, 0.8);
+      for (const it of this.interactables) {
+        if (!it.opened) g.strokeCircle(it.def.x, it.def.y, INTERACT_RADIUS);
+      }
+    }
+
+    if (dev.showPaths) {
+      const path = this.cat.debugPath ?? [];
+      if (path.length) {
+        g.lineStyle(2, 0xff8c42, 0.85);
+        g.beginPath();
+        g.moveTo(this.cat.x, this.cat.y);
+        for (const p of path) g.lineTo(p.x, p.y);
+        g.strokePath();
+      }
+    }
   }
 
   update(_time: number, delta: number) {
     if (this.matchEnded) return;
+
+    // Local-only debug controls (Level 2). These never touch networked state:
+    // in multiplayer the host still drives the authoritative simulation.
+    const dev = getDevState();
+    this.drawDebug(dev.level >= DevLevel.Inspector ? dev : null);
+    if (dev.level >= DevLevel.Tester) {
+      if (dev.freeze) return;
+      delta *= dev.speedMultiplier;
+    }
 
     const dt = Math.min(delta, 50) / 1000;
 
@@ -379,7 +444,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private setupCat() {
-    this.cat = new CatAI(this.catSpawnPos, 800, 600, this.collisionMap);
+    this.cat = new CatAI(this.catSpawnPos, WORLD_W, WORLD_H, this.collisionMap);
     this.cat.reset();
     this.cat.setDifficulty(this.difficulty);
   }

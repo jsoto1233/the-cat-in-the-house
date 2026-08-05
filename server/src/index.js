@@ -4,8 +4,11 @@ const path = require("path");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
+const { registerDevRoutes } = require("./devAuth");
+
 const app = express();
 app.use(cors());
+app.use(express.json({ limit: "16kb" })); // bounded body: no giant payloads
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -258,6 +261,10 @@ io.on("connection", (socket) => {
     removeFromRoom(socket);
   });
 });
+
+// Developer/admin API. Inert unless DEV_ADMIN_TOKEN is configured, and every
+// privileged action is authorised + audit-logged server-side (see devAuth.js).
+registerDevRoutes(app, { rooms });
 
 const clientDist = path.join(__dirname, "../../client/dist");
 app.use(express.static(clientDist));

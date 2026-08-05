@@ -1,8 +1,14 @@
 import { CollisionMap } from "../CollisionMap";
 import {
   CHEST_KEY_ID,
+  SCALE_OBJ,
+  SCALE_X,
+  SCALE_Y,
   TILE,
+  WORLD_H,
+  WORLD_W,
   type FurnitureDef,
+  type FurnitureKind,
   type InteractableDef,
   type Rect,
   type Room
@@ -49,7 +55,7 @@ function chest(id: string, label: string, x: number, y: number): InteractableDef
   return { id, kind: "chest", x, y, label, locked: true, keyId: CHEST_KEY_ID, contains: "cash_x2" };
 }
 
-export const FLOORS: FloorLayout[] = [
+const DESIGN_FLOORS: FloorLayout[] = [
   {
     floor: 1,
     name: "Ground Floor",
@@ -564,6 +570,77 @@ export const FLOORS: FloorLayout[] = [
   }
 ];
 
+// ---------------------------------------------------------------------------
+// Design-space (800x600) -> world-space (16:9) transform, applied once at load.
+// Rooms tile exactly in design space, and scaling x/w and y/h by the same
+// factors preserves that tiling, so walls and doorways still line up. Discrete
+// props scale uniformly (a bed shouldn't stretch); pieces that span a wall or
+// the ground scale on each axis so they still span it.
+// ---------------------------------------------------------------------------
+const SPANNING: ReadonlySet<FurnitureKind> = new Set<FurnitureKind>([
+  "rug",
+  "road",
+  "roadLine",
+  "crosswalk",
+  "sidewalk",
+  "fence",
+  "counter",
+  "shelving"
+]);
+
+function scaleRect<T extends Rect>(r: T): T {
+  return {
+    ...r,
+    x: r.x * SCALE_X,
+    y: r.y * SCALE_Y,
+    w: r.w * SCALE_X,
+    h: r.h * SCALE_Y
+  };
+}
+
+function scalePoint<T extends { x: number; y: number }>(p: T): T {
+  return { ...p, x: p.x * SCALE_X, y: p.y * SCALE_Y };
+}
+
+function scaleFurniture(f: FurnitureDef): FurnitureDef {
+  const spanning = SPANNING.has(f.kind);
+  const sw = spanning ? SCALE_X : SCALE_OBJ;
+  const sh = spanning ? SCALE_Y : SCALE_OBJ;
+  return {
+    ...f,
+    x: f.x * SCALE_X,
+    y: f.y * SCALE_Y,
+    w: f.w === undefined ? undefined : f.w * sw,
+    h: f.h === undefined ? undefined : f.h * sh,
+    fw: f.fw === undefined ? undefined : f.fw * sw,
+    fh: f.fh === undefined ? undefined : f.fh * sh
+  };
+}
+
+function scaleLayout(l: FloorLayout): FloorLayout {
+  return {
+    ...l,
+    rooms: l.rooms.map(scaleRect),
+    // Keep doorway openings a sensible width rather than stretching them 1.6x:
+    // scale the centre, then re-centre a proportionally sized gap.
+    connectors: l.connectors.map((c) => {
+      const cx = (c.x + c.w / 2) * SCALE_X;
+      const cy = (c.y + c.h / 2) * SCALE_Y;
+      const w = c.w * SCALE_OBJ;
+      const h = c.h * SCALE_Y;
+      return { x: cx - w / 2, y: cy - h / 2, w, h };
+    }),
+    moneySpots: l.moneySpots.map(scalePoint),
+    interactables: l.interactables.map(scalePoint),
+    furniture: l.furniture?.map(scaleFurniture),
+    playerSpawn: scalePoint(l.playerSpawn),
+    catSpawn: scalePoint(l.catSpawn),
+    exit: scalePoint(l.exit)
+  };
+}
+
+export const FLOORS: FloorLayout[] = DESIGN_FLOORS.map(scaleLayout);
+
 export function getFloorLayout(floor: number): FloorLayout {
   const idx = Math.max(0, Math.min(FLOORS.length - 1, floor - 1));
   return FLOORS[idx];
@@ -616,8 +693,8 @@ export function isBlockedByFurniture(layout: FloorLayout, x: number, y: number):
 }
 
 export function createFloorCollisionMap(layout: FloorLayout): CollisionMap {
-  const cols = Math.ceil(800 / TILE);
-  const rows = Math.ceil(600 / TILE);
+  const cols = Math.ceil(WORLD_W / TILE);
+  const rows = Math.ceil(WORLD_H / TILE);
   const grid: boolean[][] = [];
   for (let row = 0; row < rows; row++) {
     grid[row] = [];

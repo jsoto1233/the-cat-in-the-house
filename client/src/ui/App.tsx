@@ -4,6 +4,7 @@ import { Lobby } from "./screens/Lobby";
 import { GameView } from "./screens/GameView";
 import { EndScreen } from "./screens/EndScreen";
 import { MusicPlayer } from "./components/MusicPlayer";
+import { DevOverlay } from "./components/DevOverlay";
 
 export function App() {
   const { screen, gameSessionKey } = useGame();
@@ -29,6 +30,8 @@ export function App() {
       {current}
       {/* Always mounted so the music keeps playing across screen changes. */}
       <MusicPlayer />
+      {/* Cmd/Ctrl+Shift+D or ~ — local visualisation only; see devAccess.ts. */}
+      <DevOverlay />
     </>
   );
 }

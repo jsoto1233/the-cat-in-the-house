@@ -9,7 +9,7 @@ import {
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
-import { LIVES_TOTAL } from "../../game/house/houseLayout";
+import { LIVES_TOTAL, WORLD_H, WORLD_W } from "../../game/house/houseLayout";
 
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
@@ -179,8 +179,8 @@ export function GameView() {
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
-      width: 800,
-      height: 600,
+      width: WORLD_W,
+      height: WORLD_H,
       parent: container,
       backgroundColor: "#08080c",
       render: { antialias: true },

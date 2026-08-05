@@ -534,7 +534,7 @@ input {
 .game__panel {
   display: flex;
   flex-direction: column;
-  width: min(800px, 96vw);
+  width: min(1280px, 97vw);
   max-height: 94vh;
   gap: 0.65rem;
 }
@@ -542,7 +542,7 @@ input {
 .game__stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
@@ -1463,5 +1463,105 @@ input {
 }
 .music-ctl__btn[aria-pressed="true"] {
   color: var(--text-dim);
+}
+
+/* ---------- Developer overlay (Cmd/Ctrl+Shift+D or ~) ---------- */
+.dev-overlay {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 200;
+  width: min(430px, 92vw);
+  padding: 10px 12px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: rgba(10, 10, 16, 0.96);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+.dev-overlay__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dev-x {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.dev-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.dev-badge--l1 { color: #6fc7ff; border-color: #6fc7ff; }
+.dev-badge--l2 { color: #d8a531; border-color: #d8a531; }
+.dev-badge--l3 { color: var(--accent-hover); border-color: var(--accent-hover); }
+
+.dev-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.dev-row--wrap { flex-wrap: wrap; }
+.dev-label {
+  width: 42px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+.dev-note { color: var(--text-dim); font-size: 0.62rem; }
+.dev-chip {
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.68rem;
+}
+.dev-chip:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
+.dev-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.dev-chip.is-on {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
+.dev-input {
+  flex: 1;
+  min-width: 90px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.68rem;
+}
+.dev-input--wide { min-width: 150px; }
+.dev-log {
+  margin: 6px 0 4px;
+  padding: 6px 8px;
+  max-height: 110px;
+  overflow: auto;
+  border-radius: 5px;
+  background: #07070c;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  white-space: pre-wrap;
+}
+.dev-foot {
+  margin: 0;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  line-height: 1.4;
 }
 

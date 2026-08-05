@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import {
   PALETTE,
   WORLD,
+  WORLD_H,
+  WORLD_W,
   type FurnitureDef,
   type InteractableDef,
   type Rect
@@ -226,10 +228,13 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
   });
 
   // Doorway gaps in the hallway walls, derived from each room's connector.
+  const hall = layout.rooms.find((r) => r.key === "hallway");
   layout.connectors.forEach((c) => {
     const gapX = c.x + c.w / 2;
-    const wallY = c.y < 270 ? 270 : 330; // top rooms join the hallway's top wall
-    drawDoor(scene, gapX, wallY, 46, 14);
+    const gapY = c.y + c.h / 2;
+    // Top rooms join the hallway's top wall, bottom rooms its bottom wall.
+    const wallY = hall ? (gapY < hall.y + hall.h / 2 ? hall.y : hall.y + hall.h) : gapY;
+    drawDoor(scene, gapX, wallY, c.w + 4, 14);
   });
 
   // No exit caption text: the glowing exit marker (door, stairs, window, gate,
@@ -242,7 +247,7 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
 
 export function buildInteractUi(scene: Phaser.Scene): InteractUi {
   const interactPrompt = scene.add
-    .text(400, 568, "", {
+    .text(WORLD_W / 2, WORLD_H - 32, "", {
       fontFamily: "Inter, system-ui, sans-serif",
       fontSize: "13px",
       color: PALETTE.interactHint,
@@ -253,7 +258,7 @@ export function buildInteractUi(scene: Phaser.Scene): InteractUi {
     .setVisible(false);
 
   const feedbackText = scene.add
-    .text(400, 542, "", {
+    .text(WORLD_W / 2, WORLD_H - 58, "", {
       fontFamily: "Inter, system-ui, sans-serif",
       fontSize: "14px",
       color: "#e8e4f0",

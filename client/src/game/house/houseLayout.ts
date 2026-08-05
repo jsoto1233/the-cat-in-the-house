@@ -180,7 +180,27 @@ export const PALETTE = {
   lampGlow: 0xffd98a
 };
 
-export const WORLD = { x: 30, y: 30, w: 740, h: 540 };
+// ---------------------------------------------------------------------------
+// Viewport. Levels are AUTHORED against an 800x600 design space (that is what
+// every literal in floors.ts uses) and transformed once at load into the real
+// 16:9 world below, so the layouts stay readable while the game fills a
+// widescreen canvas. Change WORLD_W/WORLD_H here and everything follows.
+// ---------------------------------------------------------------------------
+export const DESIGN_W = 800;
+export const DESIGN_H = 600;
+export const WORLD_W = 1280;
+export const WORLD_H = 720;
+export const SCALE_X = WORLD_W / DESIGN_W; // 1.6
+export const SCALE_Y = WORLD_H / DESIGN_H; // 1.2
+/** Uniform scale for discrete props, so beds and cars don't stretch. */
+export const SCALE_OBJ = Math.min(SCALE_X, SCALE_Y);
+
+export const WORLD = {
+  x: 30 * SCALE_X,
+  y: 30 * SCALE_Y,
+  w: 740 * SCALE_X,
+  h: 540 * SCALE_Y
+};
 export const CASH_TOTAL = 10;
 export const CHEST_KEY_ID = "chest_key";
 export const LIVES_TOTAL = 3;
@@ -201,12 +221,12 @@ export function maxLives(difficulty: string, floor: number): number {
   return floor >= OUTSIDE_FLOOR ? LIVES_TOTAL + LIVES_OUTSIDE_BONUS : LIVES_TOTAL;
 }
 
-export const PLAYER_SPAWN = { x: 400, y: 300 };
+export const PLAYER_SPAWN = { x: 400 * SCALE_X, y: 300 * SCALE_Y };
 export const PLAYER_SPAWNS = [
-  { x: 380, y: 300 },
-  { x: 420, y: 300 },
-  { x: 380, y: 320 },
-  { x: 420, y: 320 }
+  { x: 380 * SCALE_X, y: 300 * SCALE_Y },
+  { x: 420 * SCALE_X, y: 300 * SCALE_Y },
+  { x: 380 * SCALE_X, y: 320 * SCALE_Y },
+  { x: 420 * SCALE_X, y: 320 * SCALE_Y }
 ];
 export const PLAYER_COLORS = [0x4aa3df, 0x4adf7a, 0xdf4a4a, 0xdfae4a];
 
@@ -214,19 +234,19 @@ export function playerColorCss(index: number): string {
   const color = PLAYER_COLORS[index] ?? PALETTE.player;
   return `#${color.toString(16).padStart(6, "0")}`;
 }
-export const CAT_SPAWN = { x: 440, y: 150 };
+export const CAT_SPAWN = { x: 440 * SCALE_X, y: 150 * SCALE_Y };
 
-export const PLAYER_SPEED = 165;
-export const PLAYER_BODY_RADIUS = 12;
-export const COIN_PICKUP_RADIUS = 14;
+export const PLAYER_SPEED = 165 * SCALE_OBJ;
+export const PLAYER_BODY_RADIUS = 12 * SCALE_OBJ;
+export const COIN_PICKUP_RADIUS = 14 * SCALE_OBJ;
 /** Edge-to-edge overlap between player body and coin pickup circle. */
 export const PICKUP_RADIUS = PLAYER_BODY_RADIUS + COIN_PICKUP_RADIUS;
 /** Extra slack when the host validates a remote player's coin pickup over the network. */
 export const REMOTE_PICKUP_BUFFER = 12;
-export const INTERACT_RADIUS = 34;
-export const CATCH_RADIUS = 24;
+export const INTERACT_RADIUS = 34 * SCALE_OBJ;
+export const CATCH_RADIUS = 24 * SCALE_OBJ;
 export const INVULN_SECONDS = 1.6;
-export const ESCAPE_RADIUS = 34;
+export const ESCAPE_RADIUS = 34 * SCALE_OBJ;
 export const TILE = 20;
 
 export const ROOMS: Room[] = [
@@ -293,8 +313,8 @@ export function isWalkablePoint(x: number, y: number): boolean {
 }
 
 export function createHouseCollisionMap(): CollisionMap {
-  const cols = Math.ceil(800 / TILE);
-  const rows = Math.ceil(600 / TILE);
+  const cols = Math.ceil(WORLD_W / TILE);
+  const rows = Math.ceil(WORLD_H / TILE);
   const grid: boolean[][] = [];
   for (let row = 0; row < rows; row++) {
     grid[row] = [];

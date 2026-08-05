@@ -99,6 +99,11 @@ export class CatAI {
   private pendingTasks = new Set<string>();
   private collisionMap: CollisionMap | null;
   private path: Waypoint[] = [];
+
+  /** Read-only copy of the current A* path (debug visualisation only). */
+  get debugPath(): Waypoint[] {
+    return this.path;
+  }
   private pathGoal: Waypoint | null = null;
 
   private preferredPlayerId: string | null = null;
