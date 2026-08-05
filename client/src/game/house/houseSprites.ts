@@ -22,6 +22,9 @@ const WINDOW_MARKER = 0x5fb0ff;
 const STAIRS_MARKER = 0xffb648;
 const STAIRS_TREAD = 0x4a3f2c;
 const STAIRS_TREAD_LIGHT = 0x6b5a3c;
+// Outdoor exits: fence gate and the final getaway van.
+const GATE_MARKER = 0x6fdc8c;
+const VAN_MARKER = 0xffd633;
 
 export interface MoneyMarker {
   x: number;
@@ -148,16 +151,65 @@ function drawWindowExit(
   return escapeMarker;
 }
 
+/** An open fence gate (outdoor levels 5-7). */
+function drawGateExit(
+  scene: Phaser.Scene,
+  cx: number,
+  cy: number
+): Phaser.GameObjects.Rectangle {
+  const w = 26;
+  const h = 74;
+  const escapeMarker = scene.add
+    .rectangle(0, 0, w + 14, h + 12)
+    .setStrokeStyle(2, GATE_MARKER, 0.9)
+    .setFillStyle(GATE_MARKER, 0.05);
+  const postA = scene.add
+    .rectangle(0, -h / 2, w + 8, 8, PALETTE.fence)
+    .setStrokeStyle(2, PALETTE.outline);
+  const postB = scene.add
+    .rectangle(0, h / 2, w + 8, 8, PALETTE.fence)
+    .setStrokeStyle(2, PALETTE.outline);
+  // Swung-open gate panel, so it reads as a way out.
+  const panel = scene.add
+    .rectangle(w / 2 + 4, -h / 4, 8, h / 2, PALETTE.fence)
+    .setStrokeStyle(2, PALETTE.outline)
+    .setAngle(-18);
+  scene.add.container(cx, cy, [escapeMarker, postA, postB, panel]).setDepth(1);
+  return escapeMarker;
+}
+
+/** The getaway van on the final level. */
+function drawVanExit(
+  scene: Phaser.Scene,
+  cx: number,
+  cy: number
+): Phaser.GameObjects.Rectangle {
+  const w = 54;
+  const h = 78;
+  const escapeMarker = scene.add
+    .rectangle(0, 0, w + 14, h + 12)
+    .setStrokeStyle(2, VAN_MARKER, 0.95)
+    .setFillStyle(VAN_MARKER, 0.06);
+  const body = scene.add
+    .rectangle(0, 0, w, h, PALETTE.carBody)
+    .setStrokeStyle(2, PALETTE.outline);
+  const glass = scene.add
+    .rectangle(0, -h / 3, w - 12, h / 4, PALETTE.carGlass)
+    .setStrokeStyle(1, PALETTE.outline);
+  const doorSeam = scene.add.rectangle(0, h / 6, w - 8, 2, PALETTE.carGlass, 0.8);
+  const headlight = scene.add.rectangle(0, -h / 2 + 4, w - 18, 5, PALETTE.lampGlow, 0.85);
+  scene.add
+    .container(cx, cy, [escapeMarker, body, glass, doorSeam, headlight])
+    .setDepth(1);
+  return escapeMarker;
+}
+
 function drawExit(scene: Phaser.Scene, exit: FloorExit): Phaser.GameObjects.Rectangle {
   if (exit.type === "stairs") return drawStairsExit(scene, exit.x, exit.y);
   if (exit.type === "window") return drawWindowExit(scene, exit.x, exit.y);
+  if (exit.type === "gate") return drawGateExit(scene, exit.x, exit.y);
+  if (exit.type === "van") return drawVanExit(scene, exit.x, exit.y);
   return drawDoorExit(scene, exit.x, exit.y);
-}
-
-function exitCaption(type: FloorExit["type"]): string {
-  if (type === "stairs") return "Stairs up";
-  if (type === "window") return "Window";
-  return "Exit door";
 }
 
 export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseWorldResult {
@@ -176,25 +228,9 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
     drawDoor(scene, gapX, wallY, 46, 14);
   });
 
-  // Exit caption. The window sits on the top wall, so its label goes just BELOW
-  // the marker (otherwise it renders on top of the window graphic); the door and
-  // stairs captions stay near the top of their room where they never overlap.
-  const exitRoom = layout.rooms.find((r) => r.key === layout.exit.roomKey);
-  if (exitRoom) {
-    const isWindow = layout.exit.type === "window";
-    const capX = isWindow ? layout.exit.x : exitRoom.x + exitRoom.w / 2;
-    const capY = isWindow ? layout.exit.y + 44 : exitRoom.y + 22;
-    scene.add
-      .text(capX, capY, exitCaption(layout.exit.type), {
-        fontFamily: "Inter, sans-serif",
-        fontSize: "12px",
-        color: isWindow ? "#7fc0ff" : "#8a8690",
-        align: "center"
-      })
-      .setOrigin(0.5)
-      .setDepth(2);
-  }
-
+  // No exit caption text: the glowing exit marker (door, stairs, window, gate,
+  // van) is self-explanatory, and any label risked overlapping the marker or
+  // furniture in both Normal and Ludicrous mode.
   const escapeMarker = drawExit(scene, layout.exit);
   const backDoor = { x: layout.exit.x, y: layout.exit.y };
   return { backDoor, escapeMarker };
@@ -590,6 +626,122 @@ function buildFurniturePiece(scene: Phaser.Scene, def: FurnitureDef): GO[] {
       const bootR = rectPart(scene, 13, 4, 6, 10, P.woodDark, P.outline, 1);
       return [b1, bootL, bootR];
     }
+    // ---------------- outdoor pieces (levels 5-8) ----------------
+    case "tree": {
+      const shadow = scene.add.ellipse(0, 6, w + 8, h * 0.5, 0x000000, 0.28);
+      const trunk = rectPart(scene, 0, h / 4, 10, h / 2, P.trunk, P.outline, 1);
+      const c1 = scene.add.circle(0, -h / 6, w / 2, P.leafDark).setStrokeStyle(2, P.outline);
+      const c2 = scene.add.circle(-w / 6, -h / 4, w / 3, P.leaf);
+      const c3 = scene.add.circle(w / 6, -h / 5, w / 3.4, P.leaf);
+      return [shadow, trunk, c1, c2, c3];
+    }
+    case "bush": {
+      const b1 = scene.add.circle(-w / 5, 0, w / 3, P.bush).setStrokeStyle(1, P.outline);
+      const b2 = scene.add.circle(w / 5, 1, w / 3.2, P.bush).setStrokeStyle(1, P.outline);
+      const b3 = scene.add.circle(0, -w / 6, w / 3.6, P.leaf);
+      return [b1, b2, b3];
+    }
+    case "car": {
+      const body = rectPart(scene, 0, 0, w, h, P.carBody);
+      const roof = rectPart(scene, 0, 0, w * 0.62, h * 0.66, P.carGlass, P.outline, 1);
+      const lightL = rectPart(scene, 0, -h / 2 + 4, w * 0.5, 4, P.lampGlow, P.outline, 0, 0.75);
+      const wheelA = rectPart(scene, -w / 2 - 2, -h / 4, 5, h / 5, 0x14161c, P.outline, 1);
+      const wheelB = rectPart(scene, w / 2 + 2, -h / 4, 5, h / 5, 0x14161c, P.outline, 1);
+      const wheelC = rectPart(scene, -w / 2 - 2, h / 4, 5, h / 5, 0x14161c, P.outline, 1);
+      const wheelD = rectPart(scene, w / 2 + 2, h / 4, 5, h / 5, 0x14161c, P.outline, 1);
+      return [wheelA, wheelB, wheelC, wheelD, body, roof, lightL];
+    }
+    case "bench": {
+      const seat = rectPart(scene, 0, 0, w, h, P.wood);
+      const slat = rectPart(scene, 0, 0, w - 6, 2, P.woodDark, P.woodDark, 0);
+      const legL = rectPart(scene, -w / 2 + 6, h / 2, 4, 5, P.woodDark, P.outline, 0);
+      const legR = rectPart(scene, w / 2 - 6, h / 2, 4, 5, P.woodDark, P.outline, 0);
+      return [legL, legR, seat, slat];
+    }
+    case "trashCan": {
+      const body = rectPart(scene, 0, 2, 20, 24, P.metal);
+      const lid = rectPart(scene, 0, -11, 24, 6, P.appliancePanel);
+      return [body, lid];
+    }
+    case "picnicTable": {
+      const benchA = rectPart(scene, 0, -h / 2 - 5, w, 8, P.woodDark, P.outline, 1);
+      const benchB = rectPart(scene, 0, h / 2 + 5, w, 8, P.woodDark, P.outline, 1);
+      const top = rectPart(scene, 0, 0, w, h, P.wood);
+      const grain = rectPart(scene, 0, 0, w - 8, 2, P.woodDark, P.woodDark, 0);
+      return [benchA, benchB, top, grain];
+    }
+    case "shed": {
+      const body = rectPart(scene, 0, 0, w, h, P.woodDark);
+      const panel = rectPart(scene, 0, 0, w - 10, h - 10, P.wood, P.woodDark, 1);
+      const door = rectPart(scene, 0, h / 4, w / 3, h / 2.4, P.doorWood, P.outline, 1);
+      return [body, panel, door];
+    }
+    case "pond": {
+      const rim = scene.add.ellipse(0, 0, w, h, P.grassDark).setStrokeStyle(2, P.outline);
+      const water = scene.add.ellipse(0, 0, w - 10, h - 10, P.water);
+      const shine = scene.add.ellipse(-w / 6, -h / 6, w / 4, h / 6, P.waterLight, 0.6);
+      return [rim, water, shine];
+    }
+    case "fence": {
+      const parts: GO[] = [rectPart(scene, 0, 0, w, 4, P.fence, P.outline, 1)];
+      const posts = Math.max(2, Math.round(w / 26));
+      for (let i = 0; i <= posts; i++) {
+        parts.push(rectPart(scene, -w / 2 + (i * w) / posts, 0, 4, h, P.fence, P.outline, 1));
+      }
+      return parts;
+    }
+    case "streetLamp": {
+      const glow = scene.add.circle(0, -14, 26, P.lampGlow, 0.12);
+      const pole = rectPart(scene, 0, 4, 4, 34, P.metal, P.outline, 1);
+      const head = rectPart(scene, 0, -16, 16, 7, P.lampGlow, P.outline, 1, 0.9);
+      return [glow, pole, head];
+    }
+    // ---------------- road surface & markings (ground level) -------------
+    case "road": {
+      const surface = rectPart(scene, 0, 0, w, h, P.asphalt, P.asphalt, 0, 0.95);
+      const edgeTop = rectPart(scene, 0, -h / 2 + 1, w, 2, 0x50535c, 0x50535c, 0, 0.45);
+      const edgeBot = rectPart(scene, 0, h / 2 - 1, w, 2, 0x50535c, 0x50535c, 0, 0.45);
+      return [surface, edgeTop, edgeBot];
+    }
+    case "roadLine": {
+      // Dashed centre line running the width of the piece.
+      const parts: GO[] = [];
+      const dash = 22;
+      const gap = 18;
+      const count = Math.max(1, Math.floor((w + gap) / (dash + gap)));
+      const total = count * dash + (count - 1) * gap;
+      let x = -total / 2 + dash / 2;
+      for (let i = 0; i < count; i++) {
+        parts.push(rectPart(scene, x, 0, dash, 4, 0xd9b23a, 0xd9b23a, 0, 0.75));
+        x += dash + gap;
+      }
+      return parts;
+    }
+    case "crosswalk": {
+      // Zebra stripes across the road.
+      const parts: GO[] = [];
+      const stripe = 7;
+      const gap = 8;
+      const count = Math.max(2, Math.floor((w + gap) / (stripe + gap)));
+      const total = count * stripe + (count - 1) * gap;
+      let x = -total / 2 + stripe / 2;
+      for (let i = 0; i < count; i++) {
+        parts.push(rectPart(scene, x, 0, stripe, h, 0xd8d8e0, 0xd8d8e0, 0, 0.55));
+        x += stripe + gap;
+      }
+      return parts;
+    }
+    case "sidewalk": {
+      const slab = rectPart(scene, 0, 0, w, h, 0x3a3d45, 0x3a3d45, 0, 0.85);
+      const parts: GO[] = [slab];
+      const seams = Math.max(1, Math.floor(w / 60));
+      for (let i = 1; i < seams; i++) {
+        parts.push(
+          rectPart(scene, -w / 2 + (i * w) / seams, 0, 2, h, 0x2a2d34, 0x2a2d34, 0, 0.8)
+        );
+      }
+      return parts;
+    }
     default:
       return [rectPart(scene, 0, 0, w, h, PALETTE.wood)];
   }
@@ -599,7 +751,14 @@ function buildFurniturePiece(scene: Phaser.Scene, def: FurnitureDef): GO[] {
 export function spawnFurniture(scene: Phaser.Scene, layout: FloorLayout): void {
   for (const def of layout.furniture ?? []) {
     const parts = buildFurniturePiece(scene, def);
-    const depth = def.kind === "rug" ? DEPTH_RUG : DEPTH_FURNITURE;
+    // Rugs and road surfaces/markings lie flat on the ground, under everything.
+    const groundLevel =
+      def.kind === "rug" ||
+      def.kind === "road" ||
+      def.kind === "roadLine" ||
+      def.kind === "crosswalk" ||
+      def.kind === "sidewalk";
+    const depth = groundLevel ? DEPTH_RUG : DEPTH_FURNITURE;
     scene.add.container(def.x, def.y, parts).setDepth(depth);
   }
 }

@@ -74,7 +74,23 @@ export type FurnitureKind =
   | "plant"
   | "mirror"
   | "coatRack"
-  | "clutter";
+  | "clutter"
+  // --- outdoor pieces (levels 5-8, the chase outside) ---
+  | "tree"
+  | "bush"
+  | "car"
+  | "bench"
+  | "trashCan"
+  | "picnicTable"
+  | "shed"
+  | "pond"
+  | "fence"
+  | "streetLamp"
+  // ground-level road markings (drawn under everything, never solid)
+  | "road"
+  | "roadLine"
+  | "crosswalk"
+  | "sidewalk";
 
 export interface FurnitureDef {
   id: string;
@@ -147,7 +163,21 @@ export const PALETTE = {
   plantPot: 0x6b4530,
   plantLeaf: 0x3f6b45,
   lampShade: 0xd9c07a,
-  metal: 0x40444c
+  metal: 0x40444c,
+  // Outdoor palette for the exterior chase levels.
+  grass: 0x1e3524,
+  grassDark: 0x16281b,
+  trunk: 0x4a3423,
+  leaf: 0x2f6b3d,
+  leafDark: 0x24512e,
+  bush: 0x2b5c36,
+  asphalt: 0x2a2c33,
+  carBody: 0x3c4a63,
+  carGlass: 0x22303f,
+  water: 0x24506b,
+  waterLight: 0x336b8c,
+  fence: 0x4a3c2c,
+  lampGlow: 0xffd98a
 };
 
 export const WORLD = { x: 30, y: 30, w: 740, h: 540 };

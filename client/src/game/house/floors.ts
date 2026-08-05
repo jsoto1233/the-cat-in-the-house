@@ -19,7 +19,7 @@ import {
 // room connects to it through a doorway, which is what guarantees connectivity.
 // ---------------------------------------------------------------------------
 
-export type ExitType = "door" | "stairs" | "window";
+export type ExitType = "door" | "stairs" | "window" | "gate" | "van";
 
 export interface FloorExit {
   type: ExitType;
@@ -331,6 +331,236 @@ export const FLOORS: FloorLayout[] = [
     playerSpawn: SPAWN,
     catSpawn: { x: 430, y: 170 },
     exit: { type: "window", x: 430, y: 50, roomKey: "attic" }
+  },
+  // =========================================================================
+  // OUTSIDE (levels 5-8). You bail out the top-floor window into the yard and
+  // the cat follows you into the open. Same room/connector skeleton so every
+  // zone stays reachable, but the "rooms" are now outdoor areas separated by
+  // fences and hedges, with gates instead of doors.
+  // =========================================================================
+  {
+    floor: 5,
+    name: "Back Yard",
+    tint: 0x14201a,
+    rooms: [
+      { key: "yard", name: "Back Yard", x: 30, y: 30, w: 370, h: 230 },
+      { key: "patio", name: "Patio", x: 400, y: 30, w: 370, h: 230 },
+      HALL,
+      { key: "garden", name: "Garden", x: 30, y: 340, w: 250, h: 230 },
+      { key: "shedyard", name: "Shed Yard", x: 280, y: 340, w: 240, h: 230 },
+      { key: "sidegate", name: "Side Gate", x: 520, y: 340, w: 250, h: 230 }
+    ],
+    connectors: [
+      { x: 180, y: 248, w: 44, h: 42 },
+      { x: 560, y: 248, w: 44, h: 42 },
+      { x: 130, y: 308, w: 44, h: 42 },
+      { x: 370, y: 308, w: 44, h: 42 },
+      { x: 630, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 300, y: 200 },
+      { x: 480, y: 110 },
+      { x: 700, y: 200 },
+      { x: 150, y: 480 },
+      { x: 400, y: 500 },
+      { x: 600, y: 480 }
+    ],
+    interactables: [
+      { id: "f5_key", kind: "cabinet", x: 740, y: 90, label: "Patio cabinet", contains: "key" },
+      { id: "f5_cash", kind: "cabinet", x: 70, y: 470, label: "Garden box", contains: "cash" },
+      { id: "f5_box", kind: "box", x: 60, y: 90, label: "Cardboard box", contains: null },
+      { id: "f5_med", kind: "cabinet", x: 300, y: 540, label: "Tool locker", contains: null },
+      chest("f5_chest", "Locked chest", 700, 540)
+    ],
+    furniture: [
+      { id: "f5_tree1", kind: "tree", x: 190, y: 70, w: 44, h: 44, solid: true },
+      { id: "f5_tree2", kind: "tree", x: 340, y: 120, w: 40, h: 40, solid: true },
+      { id: "f5_bush1", kind: "bush", x: 250, y: 60, w: 30, h: 20 },
+      { id: "f5_bench1", kind: "bench", x: 110, y: 240, w: 60, h: 16, solid: true },
+      { id: "f5_picnic", kind: "picnicTable", x: 560, y: 180, w: 70, h: 40, solid: true },
+      { id: "f5_bench2", kind: "bench", x: 620, y: 50, w: 60, h: 16, solid: true },
+      { id: "f5_trash1", kind: "trashCan", x: 430, y: 240 },
+      { id: "f5_pond", kind: "pond", x: 190, y: 400, w: 74, h: 50, solid: true },
+      { id: "f5_bush2", kind: "bush", x: 60, y: 380, w: 30, h: 20 },
+      { id: "f5_shed", kind: "shed", x: 420, y: 390, w: 66, h: 48, solid: true },
+      { id: "f5_trash2", kind: "trashCan", x: 300, y: 400 },
+      { id: "f5_lamp1", kind: "streetLamp", x: 560, y: 400 },
+      { id: "f5_bush3", kind: "bush", x: 700, y: 380, w: 30, h: 20 }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 300, y: 130 },
+    exit: { type: "gate", x: 750, y: 430, roomKey: "sidegate" }
+  },
+  {
+    floor: 6,
+    name: "Driveway",
+    tint: 0x161a20,
+    rooms: [
+      { key: "drive", name: "Driveway", x: 30, y: 30, w: 400, h: 230 },
+      { key: "frontyard", name: "Front Yard", x: 430, y: 30, w: 340, h: 230 },
+      HALL,
+      { key: "porch", name: "Porch", x: 30, y: 340, w: 300, h: 230 },
+      { key: "walk", name: "Walkway", x: 330, y: 340, w: 200, h: 230 },
+      { key: "curb", name: "Curb", x: 530, y: 340, w: 240, h: 230 }
+    ],
+    connectors: [
+      { x: 200, y: 248, w: 44, h: 42 },
+      { x: 580, y: 248, w: 44, h: 42 },
+      { x: 150, y: 308, w: 44, h: 42 },
+      { x: 400, y: 308, w: 44, h: 42 },
+      { x: 640, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 330, y: 200 },
+      { x: 500, y: 110 },
+      { x: 700, y: 200 },
+      { x: 200, y: 480 },
+      { x: 430, y: 500 },
+      { x: 700, y: 480 }
+    ],
+    interactables: [
+      { id: "f6_key", kind: "cabinet", x: 740, y: 230, label: "Mailbox", contains: "key" },
+      { id: "f6_cash", kind: "cabinet", x: 90, y: 540, label: "Porch bench", contains: "cash" },
+      { id: "f6_box", kind: "box", x: 60, y: 90, label: "Cardboard box", contains: null },
+      { id: "f6_med", kind: "cabinet", x: 430, y: 380, label: "Utility box", contains: null },
+      chest("f6_chest", "Locked chest", 700, 540)
+    ],
+    furniture: [
+      { id: "f6_path", kind: "road", x: 400, y: 300, w: 736, h: 52 },
+      { id: "f6_drive_pave", kind: "sidewalk", x: 220, y: 140, w: 150, h: 200 },
+      { id: "f6_car1", kind: "car", x: 220, y: 90, w: 46, h: 84, solid: true },
+      { id: "f6_bush1", kind: "bush", x: 60, y: 200, w: 30, h: 20 },
+      { id: "f6_trash1", kind: "trashCan", x: 390, y: 60 },
+      { id: "f6_tree1", kind: "tree", x: 590, y: 190, w: 44, h: 44, solid: true },
+      { id: "f6_bush2", kind: "bush", x: 470, y: 200, w: 30, h: 20 },
+      { id: "f6_lamp1", kind: "streetLamp", x: 700, y: 60 },
+      { id: "f6_bench1", kind: "bench", x: 250, y: 380, w: 60, h: 16, solid: true },
+      { id: "f6_bush3", kind: "bush", x: 300, y: 500, w: 30, h: 20 },
+      { id: "f6_fence1", kind: "fence", x: 430, y: 550, w: 90, h: 16, solid: true },
+      { id: "f6_car2", kind: "car", x: 590, y: 470, w: 46, h: 84, solid: true },
+      { id: "f6_trash2", kind: "trashCan", x: 740, y: 380 }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 330, y: 130 },
+    exit: { type: "gate", x: 52, y: 470, roomKey: "porch" }
+  },
+  {
+    floor: 7,
+    name: "The Street",
+    tint: 0x14161c,
+    rooms: [
+      { key: "street", name: "Street", x: 30, y: 30, w: 440, h: 230 },
+      { key: "lot", name: "Parking Lot", x: 470, y: 30, w: 300, h: 230 },
+      HALL,
+      { key: "alley", name: "Alley", x: 30, y: 340, w: 280, h: 230 },
+      { key: "backlot", name: "Backlot", x: 310, y: 340, w: 230, h: 230 },
+      { key: "corner", name: "Corner", x: 540, y: 340, w: 230, h: 230 }
+    ],
+    connectors: [
+      { x: 220, y: 248, w: 44, h: 42 },
+      { x: 600, y: 248, w: 44, h: 42 },
+      { x: 140, y: 308, w: 44, h: 42 },
+      { x: 400, y: 308, w: 44, h: 42 },
+      { x: 630, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 350, y: 200 },
+      { x: 560, y: 110 },
+      { x: 720, y: 200 },
+      { x: 150, y: 480 },
+      { x: 420, y: 500 },
+      { x: 650, y: 480 }
+    ],
+    interactables: [
+      { id: "f7_key", kind: "cabinet", x: 100, y: 230, label: "Newspaper box", contains: "key" },
+      { id: "f7_cash", kind: "cabinet", x: 700, y: 540, label: "Corner locker", contains: "cash" },
+      { id: "f7_box", kind: "box", x: 60, y: 60, label: "Cardboard box", contains: null },
+      { id: "f7_med", kind: "cabinet", x: 420, y: 380, label: "Utility box", contains: null },
+      chest("f7_chest", "Locked chest", 150, 540)
+    ],
+    furniture: [
+      // --- the road itself: asphalt down the hallway spine, dashed centre
+      // line, crosswalks at each connector, sidewalks along both kerbs -----
+      { id: "f7_road", kind: "road", x: 400, y: 300, w: 736, h: 56 },
+      { id: "f7_centerline", kind: "roadLine", x: 400, y: 300, w: 700, h: 4 },
+      { id: "f7_walk_top", kind: "sidewalk", x: 400, y: 268, w: 736, h: 10 },
+      { id: "f7_walk_bot", kind: "sidewalk", x: 400, y: 332, w: 736, h: 10 },
+      { id: "f7_cross1", kind: "crosswalk", x: 242, y: 300, w: 48, h: 52 },
+      { id: "f7_cross2", kind: "crosswalk", x: 622, y: 300, w: 48, h: 52 },
+      { id: "f7_cross3", kind: "crosswalk", x: 162, y: 300, w: 48, h: 52 },
+      { id: "f7_cross4", kind: "crosswalk", x: 422, y: 300, w: 48, h: 52 },
+      // --- parked cars along the kerbs and street furniture --------------
+      { id: "f7_car1", kind: "car", x: 240, y: 80, w: 46, h: 84, solid: true },
+      { id: "f7_car2", kind: "car", x: 380, y: 120, w: 46, h: 84, solid: true },
+      { id: "f7_lamp1", kind: "streetLamp", x: 60, y: 180 },
+      { id: "f7_trash1", kind: "trashCan", x: 440, y: 240 },
+      { id: "f7_car3", kind: "car", x: 640, y: 80, w: 46, h: 84, solid: true },
+      { id: "f7_bush1", kind: "bush", x: 510, y: 200, w: 30, h: 20 },
+      { id: "f7_trash2", kind: "trashCan", x: 250, y: 400 },
+      { id: "f7_fence1", kind: "fence", x: 220, y: 550, w: 90, h: 16, solid: true },
+      { id: "f7_bench1", kind: "bench", x: 480, y: 400, w: 60, h: 16, solid: true },
+      { id: "f7_tree1", kind: "tree", x: 570, y: 550, w: 40, h: 40, solid: true },
+      { id: "f7_lamp2", kind: "streetLamp", x: 740, y: 380 }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 350, y: 130 },
+    exit: { type: "gate", x: 740, y: 150, roomKey: "lot" }
+  },
+  {
+    floor: 8,
+    name: "The Getaway",
+    tint: 0x121c16,
+    rooms: [
+      { key: "park", name: "Park", x: 30, y: 30, w: 420, h: 230 },
+      { key: "grove", name: "Grove", x: 450, y: 30, w: 320, h: 230 },
+      HALL,
+      { key: "trail", name: "Trail", x: 30, y: 340, w: 260, h: 230 },
+      { key: "clearing", name: "Clearing", x: 290, y: 340, w: 250, h: 230 },
+      { key: "pickup", name: "Pickup Lot", x: 540, y: 340, w: 230, h: 230 }
+    ],
+    connectors: [
+      { x: 200, y: 248, w: 44, h: 42 },
+      { x: 580, y: 248, w: 44, h: 42 },
+      { x: 130, y: 308, w: 44, h: 42 },
+      { x: 390, y: 308, w: 44, h: 42 },
+      { x: 630, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 350, y: 200 },
+      { x: 560, y: 110 },
+      { x: 720, y: 200 },
+      { x: 150, y: 480 },
+      { x: 420, y: 500 },
+      { x: 580, y: 400 }
+    ],
+    interactables: [
+      { id: "f8_key", kind: "cabinet", x: 100, y: 230, label: "Park locker", contains: "key" },
+      { id: "f8_cash", kind: "cabinet", x: 60, y: 470, label: "Trail box", contains: "cash" },
+      { id: "f8_box", kind: "box", x: 60, y: 60, label: "Cardboard box", contains: null },
+      { id: "f8_med", kind: "cabinet", x: 400, y: 380, label: "Ranger box", contains: null },
+      chest("f8_chest", "Locked chest", 740, 540)
+    ],
+    furniture: [
+      { id: "f8_tree1", kind: "tree", x: 200, y: 70, w: 46, h: 46, solid: true },
+      { id: "f8_tree2", kind: "tree", x: 300, y: 130, w: 42, h: 42, solid: true },
+      { id: "f8_bench1", kind: "bench", x: 110, y: 180, w: 60, h: 16, solid: true },
+      { id: "f8_pond", kind: "pond", x: 400, y: 80, w: 78, h: 52, solid: true },
+      { id: "f8_tree3", kind: "tree", x: 640, y: 180, w: 46, h: 46, solid: true },
+      { id: "f8_bush1", kind: "bush", x: 500, y: 60, w: 30, h: 20 },
+      { id: "f8_bush2", kind: "bush", x: 740, y: 60, w: 30, h: 20 },
+      { id: "f8_tree4", kind: "tree", x: 230, y: 400, w: 42, h: 42, solid: true },
+      { id: "f8_bush3", kind: "bush", x: 70, y: 550, w: 30, h: 20 },
+      { id: "f8_picnic", kind: "picnicTable", x: 330, y: 480, w: 66, h: 38, solid: true },
+      { id: "f8_lamp1", kind: "streetLamp", x: 500, y: 400 },
+      { id: "f8_trash1", kind: "trashCan", x: 560, y: 550 }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 350, y: 130 },
+    exit: { type: "van", x: 690, y: 470, roomKey: "pickup" }
   }
 ];
 
