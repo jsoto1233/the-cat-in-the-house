@@ -11,6 +11,7 @@ import {
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
 import { loadSkinChoice } from "../../game/skins";
+import { recordRun } from "../../game/progress";
 import {
   SOLO_ID,
   WORLD_H,
@@ -90,6 +91,11 @@ export function GameView() {
 
   setTimeLeftRef.current = setTimeLeftMs;
   setPlayerLivesRef.current = setPlayerLives;
+  // Live view of the run for progression bookkeeping at match end.
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
+  const floorRef = useRef(floor);
+  floorRef.current = floor;
 
   useEffect(() => {
     timeLeftRef.current = timeLeftMs;
@@ -285,6 +291,9 @@ export function GameView() {
 
     const onPreview = (state: PreviewState) => setPreview(state);
     const onMatchOver = ({ outcome }: { outcome: MatchOutcome }) => {
+      // Bank what was collected and remember how deep this run got. Cosmetic
+      // progression only — it just unlocks skins.
+      recordRun(previewRef.current.cashFound, floorRef.current);
       if (outcome === "escaped" && floor < floorTotal) {
         setGameOver(true);
         setSpectating(false);

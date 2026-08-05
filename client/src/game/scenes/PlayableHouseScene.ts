@@ -90,6 +90,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   private playerContainer!: Phaser.GameObjects.Container;
   private catContainer!: Phaser.GameObjects.Container;
   private debugGfx?: Phaser.GameObjects.Graphics;
+  private lightPool?: Phaser.GameObjects.Arc;
   private playerSkin?: Skin;
 
   private playerX = PLAYER_SPAWN.x;
@@ -181,6 +182,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerContainer = buildPlayer(this, spawn.x, spawn.y, playerColor, this.playerSkin);
     this.catContainer = buildCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
     ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
+
+    this.buildLighting();
 
     if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
@@ -432,6 +435,35 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.openInteractable(target, playerId);
   }
 
+  /**
+   * Ambient lighting. A warm pool follows the player and the world edges are
+   * tinted down. Kept low-alpha and additive-looking on purpose: it adds mood
+   * without ever concealing loot, walls or the cat, so it can't make the game
+   * unfair or confusing.
+   */
+  private buildLighting() {
+    // Edge vignette (four soft bands around the play area).
+    const v = 0x05050a;
+    const band = 26;
+    const edges = [
+      this.add.rectangle(WORLD_W / 2, band / 2, WORLD_W, band, v, 0.4),
+      this.add.rectangle(WORLD_W / 2, WORLD_H - band / 2, WORLD_W, band, v, 0.4),
+      this.add.rectangle(band / 2, WORLD_H / 2, band, WORLD_H, v, 0.4),
+      this.add.rectangle(WORLD_W - band / 2, WORLD_H / 2, band, WORLD_H, v, 0.4)
+    ];
+    edges.forEach((e) => e.setDepth(8));
+
+    this.lightPool = this.add.circle(this.playerX, this.playerY, 118, 0xffe9b8, 0.055).setDepth(7);
+    this.tweens.add({
+      targets: this.lightPool,
+      scale: { from: 0.94, to: 1.06 },
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+  }
+
   private setupInput() {
     const kb = this.input.keyboard!;
     this.keys = {
@@ -479,6 +511,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerX = resolved.x;
     this.playerY = resolved.y;
     this.playerContainer.setPosition(this.playerX, this.playerY);
+    this.lightPool?.setPosition(this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
   }
 

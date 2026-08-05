@@ -1,17 +1,49 @@
+import { getProgress } from "./progress";
+
 // ---------------------------------------------------------------------------
-// Character customisation. Purely cosmetic: a skin never changes speed, size,
-// hitbox or any gameplay value, so it can't be used to gain an advantage.
-// The choice is stored locally and applied to the player sprite on spawn.
+// Character customisation. Purely cosmetic: a skin never changes speed, size or
+// hitbox, so unlocking one can't give an advantage. Skins unlock by reaching a
+// level or by spending loot cash banked from previous runs.
 // ---------------------------------------------------------------------------
 
-export type SkinPattern = "solid" | "stripe" | "spots" | "mask";
-export type SkinAccessory = "none" | "cap" | "horns" | "halo" | "ears";
+export type SkinPattern =
+  | "solid"
+  | "stripe"
+  | "spots"
+  | "mask"
+  | "skull"
+  | "panda"
+  | "circuit";
+
+export type SkinAccessory =
+  | "none"
+  | "cap"
+  | "beanie"
+  | "halo"
+  | "ears"
+  | "antenna"
+  | "crown"
+  | "sheet";
+
+export type SkinUnlock =
+  | { kind: "free" }
+  | { kind: "level"; level: number }
+  | { kind: "cash"; cost: number };
 
 export interface Skin {
   id: string;
   name: string;
   pattern: SkinPattern;
   accessory: SkinAccessory;
+  unlock: SkinUnlock;
+  /** Overrides the chosen colour (e.g. the gold king is always gold). */
+  tint?: number;
+  /** Translucency, for the ghost. */
+  alpha?: number;
+  /** Glowing eye colour. */
+  eyeGlow?: number;
+  /** Adds an outer glow ring. */
+  glow?: boolean;
 }
 
 /** The base colours a player can tint their robber. */
@@ -26,18 +58,81 @@ export const SKIN_COLORS: { id: string; name: string; value: number }[] = [
   { id: "bone", name: "Bone", value: 0xd8d3c8 }
 ];
 
-/** Pattern + accessory combinations, styled like a classic skin picker. */
 export const SKINS: Skin[] = [
-  { id: "classic", name: "Classic", pattern: "solid", accessory: "none" },
-  { id: "bandit", name: "Bandit", pattern: "mask", accessory: "none" },
-  { id: "striped", name: "Striped", pattern: "stripe", accessory: "none" },
-  { id: "spotted", name: "Spotted", pattern: "spots", accessory: "none" },
-  { id: "burglar", name: "Burglar", pattern: "mask", accessory: "cap" },
-  { id: "capped", name: "Capped", pattern: "solid", accessory: "cap" },
-  { id: "imp", name: "Imp", pattern: "solid", accessory: "horns" },
-  { id: "saint", name: "Saint", pattern: "solid", accessory: "halo" },
-  { id: "copycat", name: "Copycat", pattern: "stripe", accessory: "ears" },
-  { id: "prowler", name: "Prowler", pattern: "spots", accessory: "ears" }
+  // ---- Starter (free) ----
+  { id: "classic", name: "Blue Bandit", pattern: "mask", accessory: "none", unlock: { kind: "free" } },
+  { id: "neon", name: "Neon Blob", pattern: "solid", accessory: "none", unlock: { kind: "free" }, glow: true },
+  { id: "copycat", name: "Copycat", pattern: "stripe", accessory: "ears", unlock: { kind: "free" } },
+  // ---- Level unlocks ----
+  {
+    id: "ghost",
+    name: "Ghost Robber",
+    pattern: "solid",
+    accessory: "sheet",
+    unlock: { kind: "level", level: 2 },
+    alpha: 0.55
+  },
+  {
+    id: "ninja",
+    name: "Ninja",
+    pattern: "mask",
+    accessory: "none",
+    unlock: { kind: "level", level: 3 },
+    tint: 0x1b1b24,
+    eyeGlow: 0xff6b6b
+  },
+  {
+    id: "thief",
+    name: "Street Thief",
+    pattern: "mask",
+    accessory: "beanie",
+    unlock: { kind: "level", level: 4 }
+  },
+  {
+    id: "alien",
+    name: "Alien Invader",
+    pattern: "solid",
+    accessory: "antenna",
+    unlock: { kind: "level", level: 5 },
+    tint: 0x5ce07a,
+    glow: true
+  },
+  {
+    id: "king",
+    name: "Crown King",
+    pattern: "solid",
+    accessory: "crown",
+    unlock: { kind: "level", level: 8 },
+    tint: 0xf5c542,
+    glow: true
+  },
+  // ---- Cash purchases ----
+  {
+    id: "cybercat",
+    name: "Cybercat",
+    pattern: "circuit",
+    accessory: "ears",
+    unlock: { kind: "cash", cost: 500 },
+    tint: 0x22d3ee,
+    eyeGlow: 0xfff27a,
+    glow: true
+  },
+  {
+    id: "skeleton",
+    name: "Skeleton",
+    pattern: "skull",
+    accessory: "none",
+    unlock: { kind: "cash", cost: 1000 },
+    tint: 0xe6e2d8
+  },
+  {
+    id: "panda",
+    name: "Panda Thief",
+    pattern: "panda",
+    accessory: "ears",
+    unlock: { kind: "cash", cost: 2500 },
+    tint: 0xf2f2f4
+  }
 ];
 
 export interface SkinChoice {
@@ -59,7 +154,8 @@ export function loadSkinChoice(): SkinChoice {
       const colorId = SKIN_COLORS.some((c) => c.id === parsed.colorId)
         ? (parsed.colorId as string)
         : DEFAULT_CHOICE.colorId;
-      return { skinId, colorId };
+      // Never hand back a skin the player hasn't earned.
+      return isUnlocked(getSkin(skinId)) ? { skinId, colorId } : { ...DEFAULT_CHOICE, colorId };
     }
   } catch {
     /* ignore */
@@ -85,4 +181,37 @@ export function getSkinColor(id: string): number {
 
 export function skinColorCss(id: string): string {
   return `#${getSkinColor(id).toString(16).padStart(6, "0")}`;
+}
+
+/** The colour actually rendered: a skin's fixed tint wins over the swatch. */
+export function resolveSkinColor(skin: Skin, colorId: string): number {
+  return skin.tint ?? getSkinColor(colorId);
+}
+
+export function isUnlocked(skin: Skin): boolean {
+  const p = getProgress();
+  if (skin.unlock.kind === "free") return true;
+  if (skin.unlock.kind === "level") return p.bestLevel >= skin.unlock.level;
+  return p.purchased.includes(skin.id);
+}
+
+/** Human-readable unlock requirement, or null when already owned. */
+export function unlockLabel(skin: Skin): string | null {
+  if (isUnlocked(skin)) return null;
+  if (skin.unlock.kind === "level") return `Reach level ${skin.unlock.level}`;
+  if (skin.unlock.kind === "cash") return `$${skin.unlock.cost.toLocaleString()}`;
+  return null;
+}
+
+/** 0..1 progress toward unlocking, for the progress bar. */
+export function unlockProgress(skin: Skin): number {
+  const p = getProgress();
+  if (isUnlocked(skin)) return 1;
+  if (skin.unlock.kind === "level") {
+    return Math.min(1, p.bestLevel / skin.unlock.level);
+  }
+  if (skin.unlock.kind === "cash") {
+    return Math.min(1, p.bank / skin.unlock.cost);
+  }
+  return 1;
 }

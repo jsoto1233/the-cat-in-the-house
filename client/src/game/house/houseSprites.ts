@@ -226,6 +226,16 @@ export function drawHouseWorld(scene: Phaser.Scene, layout: FloorLayout): HouseW
     const fill =
       room.key === "hallway" ? PALETTE.hallway : i % 2 ? PALETTE.floorAlt : layout.tint;
     drawRect(scene, room.x, room.y, room.w, room.h, fill, PALETTE.wallLine, 2);
+    // Wall elevation: stacked dark bands down from the top edge fake the height
+    // of the far wall, and a lighter band along the bottom edge catches light.
+    for (let b = 0; b < 4; b++) {
+      scene.add
+        .rectangle(room.x + room.w / 2, room.y + 2 + b * 3, room.w - 4, 3, 0x000000, 0.24 - b * 0.05)
+        .setDepth(0.1);
+    }
+    scene.add
+      .rectangle(room.x + room.w / 2, room.y + room.h - 2, room.w - 4, 2, 0xffffff, 0.03)
+      .setDepth(0.1);
   });
 
   // Doorway gaps in the hallway walls, derived from each room's connector.
@@ -558,31 +568,66 @@ export function buildPlayer(
   skin?: Skin
 ): Phaser.GameObjects.Container {
   const R = 12;
-  const shadow = scene.add.ellipse(0, 12, 26, 10, 0x000000, 0.4);
-  const body = scene.add.circle(0, 0, R, color);
-  const parts: Phaser.GameObjects.GameObject[] = [shadow];
+  const parts: Phaser.GameObjects.GameObject[] = [];
+
+  // Contact shadow on the floor. Tweened so it breathes with movement.
+  const shadow = scene.add.ellipse(0, 13, 26, 9, 0x000000, 0.45);
+  scene.tweens.add({
+    targets: shadow,
+    scaleX: { from: 0.92, to: 1.06 },
+    scaleY: { from: 1, to: 0.86 },
+    alpha: { from: 0.45, to: 0.3 },
+    duration: 900,
+    yoyo: true,
+    repeat: -1,
+    ease: "Sine.easeInOut"
+  });
+  parts.push(shadow);
+
+  if (skin?.glow) {
+    const glow = scene.add.circle(0, 0, R + 7, color, 0.22);
+    scene.tweens.add({
+      targets: glow,
+      scale: { from: 0.88, to: 1.18 },
+      alpha: { from: 0.28, to: 0.08 },
+      duration: 1100,
+      yoyo: true,
+      repeat: -1
+    });
+    parts.push(glow);
+  }
 
   const dir = scene.add.triangle(0, 14, 0, 0, 5, 8, -5, 8, color);
   dir.setRotation(-Math.PI / 2);
   parts.push(dir);
 
-  // Ears sit behind the body so they read as silhouette.
+  // Head-wear that sits behind the body reads as silhouette.
   if (skin?.accessory === "ears") {
     parts.push(
       scene.add.triangle(-7, -10, 0, 0, 8, 0, 4, -9, color).setStrokeStyle(1, PALETTE.outline),
       scene.add.triangle(7, -10, 0, 0, 8, 0, 4, -9, color).setStrokeStyle(1, PALETTE.outline)
     );
   }
-  if (skin?.accessory === "horns") {
+  if (skin?.accessory === "antenna") {
     parts.push(
-      scene.add.triangle(-8, -9, 0, 0, 5, 0, 1, -9, 0xd8452f),
-      scene.add.triangle(8, -9, 0, 0, 5, 0, 4, -9, 0xd8452f)
+      scene.add.rectangle(-5, -16, 1.6, 8, color),
+      scene.add.rectangle(5, -16, 1.6, 8, color),
+      scene.add.circle(-5, -20, 2.4, color),
+      scene.add.circle(5, -20, 2.4, color)
+    );
+  }
+  if (skin?.accessory === "sheet") {
+    // A ragged hem under the body, so the ghost reads as a floating sheet.
+    parts.push(
+      scene.add.triangle(-7, 12, 0, 0, 7, 0, 3.5, 6, color, 0.75),
+      scene.add.triangle(0, 12, 0, 0, 7, 0, 3.5, 6, color, 0.75),
+      scene.add.triangle(7, 12, 0, 0, 7, 0, 3.5, 6, color, 0.75)
     );
   }
 
-  parts.push(body);
+  parts.push(body(scene, R, color, skin));
 
-  // Pattern overlays, clipped visually by staying inside the body radius.
+  // Pattern overlays, kept inside the body radius.
   if (skin?.pattern === "stripe") {
     parts.push(
       scene.add.rectangle(0, -5, R * 1.85, 3, 0x000000, 0.32),
@@ -597,13 +642,37 @@ export function buildPlayer(
     );
   } else if (skin?.pattern === "mask") {
     parts.push(scene.add.rectangle(0, -3, R * 2, 7, 0x14141c, 0.85));
+  } else if (skin?.pattern === "panda") {
+    parts.push(
+      scene.add.circle(-4.5, -3, 4, 0x1b1b22, 0.9),
+      scene.add.circle(4.5, -3, 4, 0x1b1b22, 0.9)
+    );
+  } else if (skin?.pattern === "skull") {
+    parts.push(
+      scene.add.circle(-4, -3, 3.4, 0x1b1b22),
+      scene.add.circle(4, -3, 3.4, 0x1b1b22),
+      scene.add.rectangle(0, 5, 8, 4, 0x1b1b22, 0.9),
+      scene.add.rectangle(0, 5, 1.4, 4, 0xe6e2d8)
+    );
+  } else if (skin?.pattern === "circuit") {
+    parts.push(
+      scene.add.rectangle(0, -6, R * 1.5, 1.4, 0x0a2a30, 0.8),
+      scene.add.rectangle(0, 3, R * 1.7, 1.4, 0x0a2a30, 0.8),
+      scene.add.rectangle(-5, -1, 1.4, 8, 0x0a2a30, 0.8),
+      scene.add.circle(6, 3, 1.6, 0xfff27a, 0.9)
+    );
   }
 
-  // Eyes go on top of the mask so the character still reads as a face.
-  parts.push(
-    scene.add.circle(-4, -3, 1.8, skin?.pattern === "mask" ? 0xfff4d0 : 0x0a0a0f),
-    scene.add.circle(4, -3, 1.8, skin?.pattern === "mask" ? 0xfff4d0 : 0x0a0a0f)
-  );
+  // Eyes on top so the face still reads through masks and patterns.
+  const eyeColor =
+    skin?.eyeGlow ??
+    (skin?.pattern === "mask" || skin?.pattern === "panda" ? 0xfff4d0 : 0x0a0a0f);
+  if (skin?.pattern !== "skull") {
+    parts.push(
+      scene.add.circle(-4, -3, skin?.accessory === "antenna" ? 2.6 : 1.8, eyeColor),
+      scene.add.circle(4, -3, skin?.accessory === "antenna" ? 2.6 : 1.8, eyeColor)
+    );
+  }
 
   if (skin?.accessory === "cap") {
     parts.push(
@@ -611,13 +680,37 @@ export function buildPlayer(
       scene.add.rectangle(4, -8, 12, 3, 0x1d1d30)
     );
   }
-  if (skin?.accessory === "halo") {
+  if (skin?.accessory === "beanie") {
     parts.push(
-      scene.add.ellipse(0, -16, 18, 6).setStrokeStyle(2, 0xffe488, 0.95)
+      scene.add.rectangle(0, -10, R * 1.75, 7, 0x3b4a63),
+      scene.add.rectangle(0, -6, R * 1.8, 3, 0x2a374c),
+      scene.add.circle(0, -15, 3, 0x53506a)
     );
   }
+  if (skin?.accessory === "crown") {
+    parts.push(
+      scene.add.rectangle(0, -12, 16, 4, 0xffd633),
+      scene.add.triangle(-6, -16, 0, 6, 4, 0, 8, 6, 0xffd633),
+      scene.add.triangle(0, -17, 0, 7, 4, 0, 8, 7, 0xffd633),
+      scene.add.triangle(6, -16, 0, 6, 4, 0, 8, 6, 0xffd633)
+    );
+  }
+  if (skin?.accessory === "halo") {
+    parts.push(scene.add.ellipse(0, -16, 18, 6).setStrokeStyle(2, 0xffe488, 0.95));
+  }
 
-  return scene.add.container(x, y, parts).setDepth(5);
+  const container = scene.add.container(x, y, parts).setDepth(5);
+  if (skin?.alpha !== undefined) container.setAlpha(skin.alpha);
+  return container;
+}
+
+function body(
+  scene: Phaser.Scene,
+  R: number,
+  color: number,
+  skin?: Skin
+): Phaser.GameObjects.Arc {
+  return scene.add.circle(0, 0, R, color, skin?.alpha !== undefined ? 0.9 : 1);
 }
 
 export function buildCat(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {
@@ -939,6 +1032,14 @@ function buildFurniturePiece(scene: Phaser.Scene, def: FurnitureDef): GO[] {
 /** Draw the whole furniture/decoration layer for a floor (visual only). */
 export function spawnFurniture(scene: Phaser.Scene, layout: FloorLayout): void {
   for (const def of layout.furniture ?? []) {
+    // Solid pieces drop a soft shadow down-right, giving the room some depth.
+    if (def.solid) {
+      const sw = (def.w ?? 32) * 0.98;
+      const sh = (def.h ?? 32) * 0.98;
+      scene.add
+        .rectangle(def.x + 4, def.y + 5, sw, sh, 0x000000, 0.32)
+        .setDepth(DEPTH_FURNITURE - 0.1);
+    }
     const parts = buildFurniturePiece(scene, def);
     // Rugs and road surfaces/markings lie flat on the ground, under everything.
     const groundLevel =
