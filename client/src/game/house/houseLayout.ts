@@ -221,6 +221,34 @@ export function maxLives(difficulty: string, floor: number): number {
   return floor >= OUTSIDE_FLOOR ? LIVES_TOTAL + LIVES_OUTSIDE_BONUS : LIVES_TOTAL;
 }
 
+/**
+ * Stable identity for a solo run. Player lives are stored in a map keyed by
+ * player id and must survive a floor change; the Socket.IO socket id is NOT
+ * safe for that because it changes on every reconnect, which silently orphaned
+ * the saved lives and made them look "reset" on the next floor.
+ */
+export const SOLO_ID = "solo";
+
+/**
+ * Grant the one-off outdoor top-up when a run crosses from inside to outside.
+ * Dead players stay dead, and Ludicrous never receives it.
+ */
+export function applyOutsideBonus(
+  lives: Record<string, number>,
+  prevFloor: number,
+  nextFloor: number,
+  difficulty: string
+): Record<string, number> {
+  if (difficulty === "ludicrous") return lives;
+  if (!(nextFloor >= OUTSIDE_FLOOR && prevFloor < OUTSIDE_FLOOR)) return lives;
+  const cap = maxLives(difficulty, nextFloor);
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(lives)) {
+    out[id] = n > 0 ? Math.min(cap, n + LIVES_OUTSIDE_BONUS) : n;
+  }
+  return out;
+}
+
 export const PLAYER_SPAWN = { x: 400 * SCALE_X, y: 300 * SCALE_Y };
 export const PLAYER_SPAWNS = [
   { x: 380 * SCALE_X, y: 300 * SCALE_Y },

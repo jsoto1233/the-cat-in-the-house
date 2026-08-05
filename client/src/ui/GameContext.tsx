@@ -10,9 +10,7 @@ import {
 } from "react";
 import { GameClient } from "../game/GameClient";
 import {
-  LIVES_OUTSIDE_BONUS,
-  OUTSIDE_FLOOR,
-  maxLives,
+  applyOutsideBonus,
   startingLives
 } from "../game/house/houseLayout";
 import type { RoomState } from "../types";
@@ -107,6 +105,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  // Socket handlers are registered once; a ref keeps them reading the live value.
+  const difficultyRef = useRef<Difficulty>("normal");
+  difficultyRef.current = difficulty;
   const [matchTimeLeftMs, setMatchTimeLeftMs] = useState<number | null>(null);
   const [hostId, setHostId] = useState("");
   const [gamePlayerIds, setGamePlayerIds] = useState<string[]>([]);
@@ -137,8 +138,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setScreen("game");
     });
     const offAdvanceFloor = client.onAdvanceFloor(({ floor: nextFloor, playerLives: lives }) => {
-      setFloor(nextFloor);
-      setPlayerLives(lives);
+      setFloor((prevFloor) => {
+        setPlayerLives((prev) => {
+          // Never wipe lives because the server sent nothing useful.
+          const incoming = lives && Object.keys(lives).length > 0 ? lives : prev;
+          // The multiplayer path doesn't go through advanceFloor(), so the
+          // outdoor top-up has to be applied here too.
+          return applyOutsideBonus(incoming, prevFloor, nextFloor, difficultyRef.current);
+        });
+        return nextFloor;
+      });
       setOutcome(null);
       setMatchTimeLeftMs(null);
       setGameSessionKey((k) => k + 1);
@@ -237,17 +246,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const next = Math.min(FLOOR_TOTAL, f + 1);
       // Stepping outside for the first time tops everyone up (Normal only —
       // Ludicrous keeps its 4 starting lives for the whole run).
-      if (next === OUTSIDE_FLOOR && f < OUTSIDE_FLOOR && difficulty !== "ludicrous") {
-        setPlayerLives((prev) => {
-          const cap = maxLives(difficulty, next);
-          const bumped: Record<string, number> = {};
-          for (const [id, n] of Object.entries(prev)) {
-            // Only living players get the bonus; the dead stay dead.
-            bumped[id] = n > 0 ? Math.min(cap, n + LIVES_OUTSIDE_BONUS) : n;
-          }
-          return bumped;
-        });
-      }
+      setPlayerLives((prev) => applyOutsideBonus(prev, f, next, difficulty));
       return next;
     });
     setOutcome(null);

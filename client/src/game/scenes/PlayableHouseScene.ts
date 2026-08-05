@@ -493,7 +493,7 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   private isPlayerAlive(id: string) {
-    return (this.playerLives.get(id) ?? LIVES_TOTAL) > 0;
+    return (this.playerLives.get(id) ?? startingLives(this.difficulty)) > 0;
   }
 
   private hasEscaped(id: string) {
@@ -816,7 +816,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
       playCatchSound(); // angry cat screech + victim's "oof"
 
-      const remaining = Math.max(0, (this.playerLives.get(p.id) ?? LIVES_TOTAL) - 1);
+      const remaining = Math.max(0, (this.playerLives.get(p.id) ?? startingLives(this.difficulty)) - 1);
       this.playerLives.set(p.id, remaining);
       this.syncPlayerLivesToContext();
       this.emitPreview();
@@ -950,7 +950,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       mood: this.lastMood,
       atticUnlocked: this.lastAtticUnlocked,
       hasKey: this.hasKey,
-      lives: this.playerLives.get(this.localId) ?? LIVES_TOTAL,
+      lives: this.playerLives.get(this.localId) ?? startingLives(this.difficulty),
       livesTotal: maxLives(this.difficulty, this.currentFloor),
       difficulty: this.difficulty
     };

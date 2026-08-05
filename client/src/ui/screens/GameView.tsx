@@ -9,7 +9,12 @@ import {
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
-import { LIVES_TOTAL, WORLD_H, WORLD_W } from "../../game/house/houseLayout";
+import {
+  SOLO_ID,
+  WORLD_H,
+  WORLD_W,
+  startingLives
+} from "../../game/house/houseLayout";
 
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
@@ -167,12 +172,20 @@ export function GameView() {
 
     const mp = !!hostId && connected;
     const host = !mp || client.localId === hostId;
-    const ids =
-      mp && gamePlayerIds.length > 0 ? gamePlayerIds : [client.localId || localId || "p1"];
+    // Identity used to key per-player state (lives). In multiplayer this is the
+    // socket id, but a SOLO run must use a stable id: the socket id changes on
+    // every reconnect, which orphaned the saved lives and made them look like
+    // they reset when a new floor loaded.
+    const selfId = mp ? client.localId || localId || "p1" : SOLO_ID;
+    const ids = mp && gamePlayerIds.length > 0 ? gamePlayerIds : [selfId];
     const initialPlayerLives: Record<string, number> = { ...playerLives };
+    // Safety net: if the saved lives were keyed under a previous id (an old
+    // socket), carry the value over instead of silently handing back a full bar.
+    const savedValues = Object.values(initialPlayerLives);
     for (const id of ids) {
       if (initialPlayerLives[id] === undefined) {
-        initialPlayerLives[id] = LIVES_TOTAL;
+        initialPlayerLives[id] =
+          !mp && savedValues.length === 1 ? savedValues[0] : startingLives(difficulty);
       }
     }
     const displayDpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -195,7 +208,7 @@ export function GameView() {
           g.registry.set("floor", floor);
           g.registry.set("floorTotal", floorTotal);
           g.registry.set("multiplayer", mp);
-          g.registry.set("localId", client.localId || localId || "p1");
+          g.registry.set("localId", selfId);
           g.registry.set("isHost", host);
           g.registry.set("playerIds", ids);
           g.registry.set("playerLives", initialPlayerLives);
