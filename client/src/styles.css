@@ -1479,7 +1479,7 @@ input {
 
 .skin-panel {
   flex: 0 0 210px;
-  align-self: center;
+  align-self: flex-end;
   padding: 0.9rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1502,16 +1502,22 @@ input {
   color: var(--text-dim);
 }
 .skin-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 150px;
   padding: 0.5rem;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border);
 }
+/* Caption is absolutely placed so it can't push the avatar off-centre. */
 .skin-preview__name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7px;
+  text-align: center;
   font-size: 0.7rem;
   color: var(--text-muted);
 }
