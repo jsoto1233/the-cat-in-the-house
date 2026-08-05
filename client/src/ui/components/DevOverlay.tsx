@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useGame } from "../GameContext";
 import {
   DevLevel,
   can,
@@ -20,6 +21,8 @@ import {
  * command to the server, which re-checks authorisation and runs it there.
  */
 export function DevOverlay() {
+  const { floor, floorTotal, jumpToFloor, hostId, connected } = useGame();
+  const isMultiplayer = !!hostId && connected;
   const [dev, setDev] = useState<DevState>(getDevState());
   const [token, setToken] = useState("");
   const [cmd, setCmd] = useState("stats");
@@ -127,6 +130,28 @@ export function DevOverlay() {
             </button>
           ))}
           {dev.showFps && <span className="dev-note">{fps} fps</span>}
+        </div>
+      )}
+
+      {can(DevLevel.Tester) && (
+        <div className="dev-row dev-row--wrap">
+          <span className="dev-label">Level</span>
+          {Array.from({ length: floorTotal }).map((_, i) => (
+            <button
+              key={i}
+              className={`dev-chip ${floor === i + 1 ? "is-on" : ""}`}
+              onClick={() => jumpToFloor(i + 1)}
+              disabled={isMultiplayer}
+              title={
+                isMultiplayer
+                  ? "Solo only — jumping would desync the other players"
+                  : `Jump to level ${i + 1}`
+              }
+            >
+              {i + 1}
+            </button>
+          ))}
+          {isMultiplayer && <span className="dev-note">solo only</span>}
         </div>
       )}
 

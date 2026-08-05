@@ -10,7 +10,9 @@ import {
 } from "react";
 import { GameClient } from "../game/GameClient";
 import {
+  SOLO_ID,
   applyOutsideBonus,
+  maxLives,
   startingLives
 } from "../game/house/houseLayout";
 import type { RoomState } from "../types";
@@ -84,6 +86,7 @@ interface GameContextValue {
   floor: number;
   floorTotal: number;
   advanceFloor: () => void;
+  jumpToFloor: (floor: number) => void;
   playerLives: Record<string, number>;
   setPlayerLives: (lives: Record<string, number>) => void;
 }
@@ -254,6 +257,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameSessionKey((k) => k + 1);
   }, [difficulty]);
 
+  /**
+   * Dev/testing: jump straight to any floor. Solo only — it re-seeds the local
+   * run, so firing it mid-multiplayer would desync the other clients. Lives are
+   * refilled to that floor's maximum so the level can actually be played/tested.
+   */
+  const jumpToFloor = useCallback(
+    (target: number) => {
+      const next = Math.min(FLOOR_TOTAL, Math.max(1, Math.floor(target)));
+      setFloor(next);
+      setPlayerLives({ [SOLO_ID]: maxLives(difficulty, next) });
+      setOutcome(null);
+      setMatchTimeLeftMs(null);
+      setGameSessionKey((k) => k + 1);
+      setScreen("game");
+    },
+    [difficulty]
+  );
+
   const returnToLobby = useCallback(() => {
     client.detachScene();
     setOutcome(null);
@@ -313,6 +334,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       floor,
       floorTotal: FLOOR_TOTAL,
       advanceFloor,
+      jumpToFloor,
       playerLives,
       setPlayerLives
     }),
@@ -345,6 +367,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gameSessionKey,
       floor,
       advanceFloor,
+      jumpToFloor,
       playerLives
     ]
   );
