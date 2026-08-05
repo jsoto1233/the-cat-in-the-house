@@ -477,6 +477,33 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Host/solo: match timer hit zero. If anyone already escaped, treat the
+   * remaining active players like they died out and clear the floor with
+   * only the escapees. Otherwise it's a full timeout loss.
+   */
+  handleTimeExpired() {
+    if (this.matchEnded) return;
+    if (this.multiplayer && !this.isHost) return;
+
+    if (this.escapedPlayers.size > 0) {
+      for (const id of this.playerIds) {
+        if (!this.isPlayerActive(id)) continue;
+        this.playerLives.set(id, 0);
+        if (id !== this.localId) {
+          const pos = this.remotePositions.get(id);
+          if (pos) this.remotePositions.set(id, { ...pos, alive: false });
+        }
+      }
+      this.syncPlayerLivesToContext();
+      this.emitPreview();
+      this.endMatch("escaped");
+      return;
+    }
+
+    this.endMatch("timeout");
+  }
+
   private tickInvuln(dt: number) {
     for (const [id, remaining] of this.playerInvuln) {
       this.playerInvuln.set(id, Math.max(0, remaining - dt));
@@ -757,10 +784,10 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.catContainer.setPosition(this.cat.x, this.cat.y);
       this.cat.calm(25);
 
-      // After the loot goal, wiping the last active player still clears the floor.
-      // Before the loot goal, everyone dead means a full loss.
+      // Floor only clears if at least one player escaped. If everyone dies
+      // with no escapes (even after the loot goal), it's a full loss.
       if (!this.anyoneStillActive()) {
-        if (this.cashFound >= CASH_TOTAL) this.endMatch("escaped");
+        if (this.escapedPlayers.size > 0) this.endMatch("escaped");
         else this.endMatch("caught");
       }
       this.pushHostSync();
@@ -820,7 +847,10 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.emitPreview();
 
     const floorCleared = outcome === "escaped" && this.currentFloor < this.floorTotal;
-    const runEnded = outcome === "caught" || (outcome === "escaped" && !floorCleared);
+    const runEnded =
+      outcome === "caught" ||
+      outcome === "timeout" ||
+      (outcome === "escaped" && !floorCleared);
 
     if (this.multiplayer && this.isHost) {
       this.onHostSync?.({

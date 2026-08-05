@@ -16,7 +16,6 @@ export type Screen =
   | "menu"
   | "lobby"
   | "game"
-  | "credits"
   | "end";
 
 export type Outcome = "escaped" | "caught" | "timeout" | null;

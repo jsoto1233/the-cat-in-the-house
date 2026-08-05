@@ -2,7 +2,6 @@ import { useGame } from "./GameContext";
 import { MainMenu } from "./screens/MainMenu";
 import { Lobby } from "./screens/Lobby";
 import { GameView } from "./screens/GameView";
-import { Credits } from "./screens/Credits";
 import { EndScreen } from "./screens/EndScreen";
 import { MusicPlayer } from "./components/MusicPlayer";
 
@@ -16,9 +15,6 @@ export function App() {
       break;
     case "game":
       current = <GameView key={gameSessionKey} />;
-      break;
-    case "credits":
-      current = <Credits />;
       break;
     case "end":
       current = <EndScreen />;
