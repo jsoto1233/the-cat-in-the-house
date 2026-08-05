@@ -1465,6 +1465,149 @@ input {
   color: var(--text-dim);
 }
 
+/* ---------- Pre-game directions ---------- */
+.briefing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  background: rgba(4, 4, 8, 0.93);
+  backdrop-filter: blur(3px);
+  animation: rise 0.28s ease both;
+  overflow: auto;
+}
+.briefing-overlay__inner {
+  width: min(760px, 100%);
+  text-align: left;
+}
+.briefing-overlay__title {
+  margin: 0 0 0.9rem;
+  text-align: center;
+  font-size: 1.5rem;
+  color: var(--accent-hover);
+  letter-spacing: 0.02em;
+}
+.briefing-overlay__hint {
+  margin: 0.5rem 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  animation: splash-pulse 1.8s ease-in-out infinite;
+}
+@keyframes splash-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+.briefing {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.9rem 1.4rem;
+  margin-bottom: 1rem;
+}
+.briefing__block { min-width: 0; }
+.briefing__h {
+  margin: 0 0 0.35rem;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-hover);
+}
+.briefing__list {
+  margin: 0;
+  padding-left: 1.05rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+.briefing__list li { margin-bottom: 0.2rem; }
+.briefing__win { color: var(--success); font-weight: 600; }
+.briefing__lose { color: var(--danger); font-weight: 600; }
+
+.briefing__keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.76rem;
+}
+.briefing__keys li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 0.3rem;
+}
+.briefing__keys em {
+  margin-left: auto;
+  padding-left: 0.6rem;
+  font-style: normal;
+  color: var(--text-muted);
+}
+.briefing__keys span { color: var(--text-dim); font-size: 0.68rem; }
+.briefing kbd {
+  display: inline-block;
+  min-width: 1.35rem;
+  padding: 1px 5px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 0.68rem;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+.briefing__crew { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.briefing__crew-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.briefing__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.briefing__note {
+  margin: 0.45rem 0 0;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Lobby variant */
+.lobby-briefing {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+}
+.lobby-briefing > summary {
+  cursor: pointer;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+.lobby-briefing .briefing {
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  margin-bottom: 0;
+}
+.lobby-status {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  font-size: 0.72rem;
+}
+
 /* ---------- Developer overlay (Cmd/Ctrl+Shift+D or ~) ---------- */
 .dev-overlay {
   position: fixed;

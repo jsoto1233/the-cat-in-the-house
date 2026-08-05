@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
+import { Briefing } from "../components/Briefing";
 import { playerColorCss } from "../../game/house/houseLayout";
 import type { PlayerState } from "../../types";
 
@@ -124,6 +125,23 @@ export function Lobby() {
           </div>
 
           <p className="lobby-note dim">Rob the house and slip out before the cat catches you. Up to 4 robbers.</p>
+
+          {/* Pre-game directions. The lobby is the multiplayer briefing point:
+              it already gates the start on everyone being ready. */}
+          <details className="lobby-briefing" open>
+            <summary>How to play</summary>
+            <Briefing mode="multiplayer" />
+          </details>
+
+          <p className="lobby-status dim">
+            {allReady
+              ? isHost
+                ? "Everyone's ready — start when you are."
+                : "Everyone's ready. Waiting for the host to start…"
+              : ready
+                ? "Waiting for other players…"
+                : "Read the directions, then click Ready up."}
+          </p>
 
           <div className="btn-stack">
             <Button variant="secondary" onClick={() => setReady(!ready)}>

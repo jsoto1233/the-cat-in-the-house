@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { useGame, type Outcome } from "../GameContext";
 import { HUD } from "../components/HUD";
 import { PauseOverlay } from "../components/PauseOverlay";
+import { Briefing } from "../components/Briefing";
 import {
   PlayableHouseScene,
   type PreviewState,
@@ -94,7 +95,12 @@ export function GameView() {
     setMatchTimeLeftMs(timeLeftMs);
   }, [timeLeftMs, setMatchTimeLeftMs]);
 
-  const gameplayPaused = paused || gameOver;
+  // Pre-game directions. Solo only, and only on the first floor of a run: the
+  // multiplayer briefing lives in the Lobby, which already owns readiness.
+  // While it's open the match is held paused (timer, entities, spawning).
+  const [briefingOpen, setBriefingOpen] = useState(!isMultiplayer && floor === 1);
+
+  const gameplayPaused = paused || gameOver || briefingOpen;
   const canResume = !isMultiplayer || !pausedBy || pausedBy === (client.localId || localId);
 
   const requestPause = () => {
@@ -310,13 +316,27 @@ export function GameView() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || gameOver) return;
+      if (briefingOpen || e.key !== "Escape" || gameOver) return;
       if (paused) requestResume();
       else requestPause();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [gameOver, paused, isMultiplayer, canResume, client, localId]);
+  }, [gameOver, paused, isMultiplayer, canResume, client, localId, briefingOpen]);
+
+  // "Press any key to begin" — ignoring bare modifiers and the debug shortcut.
+  useEffect(() => {
+    if (!briefingOpen) return;
+    const start = (e: KeyboardEvent) => {
+      if (["Shift", "Control", "Alt", "Meta", "Tab"].includes(e.key)) return;
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey) return; // dev overlay combo
+      if (e.key === "~" || e.key === "`") return;
+      e.preventDefault();
+      setBriefingOpen(false);
+    };
+    window.addEventListener("keydown", start);
+    return () => window.removeEventListener("keydown", start);
+  }, [briefingOpen]);
 
   useEffect(() => {
     const scene = gameRef.current?.scene;
@@ -342,6 +362,25 @@ export function GameView() {
 
         <div className="game__stage">
           <div ref={containerRef} id="game-container" className="game__canvas" />
+
+          {briefingOpen && (
+            <div
+              className="briefing-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-label="How to play"
+              onClick={() => setBriefingOpen(false)}
+            >
+              <div className="briefing-overlay__inner" onClick={(e) => e.stopPropagation()}>
+                <h2 className="briefing-overlay__title">How to play</h2>
+                <Briefing mode="solo" />
+                <button className="btn btn--primary" onClick={() => setBriefingOpen(false)}>
+                  Start Game
+                </button>
+                <p className="briefing-overlay__hint">or press any key to begin</p>
+              </div>
+            </div>
+          )}
 
           {floorSplash && (
             <div className="floor-splash" role="status">
