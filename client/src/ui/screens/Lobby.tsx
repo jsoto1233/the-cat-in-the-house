@@ -47,7 +47,7 @@ export function Lobby() {
 
   return (
     <div className="screen">
-      <div className="screen__inner">
+      <div className="menu-shell">
         <div className="brand">
           <h1 className="brand__title">Heist lobby</h1>
           <p className="brand__subtitle">
@@ -55,7 +55,13 @@ export function Lobby() {
           </p>
         </div>
 
-        <div className="panel">
+        <div className="menu-layout">
+          <aside className="brief-panel" aria-label="How to play">
+            <h2 className="skin-panel__title">How to play</h2>
+            <Briefing mode="multiplayer" />
+          </aside>
+
+          <div className="panel menu-panel">
           <div className="room-code">
             <div>
               <span className="hud__label">Room code</span>
@@ -126,13 +132,6 @@ export function Lobby() {
 
           <p className="lobby-note dim">Rob the house and slip out before the cat catches you. Up to 4 robbers.</p>
 
-          {/* Pre-game directions. The lobby is the multiplayer briefing point:
-              it already gates the start on everyone being ready. */}
-          <details className="lobby-briefing" open>
-            <summary>How to play</summary>
-            <Briefing mode="multiplayer" />
-          </details>
-
           <p className="lobby-status dim">
             {allReady
               ? isHost
@@ -158,6 +157,7 @@ export function Lobby() {
             <button className="link" onClick={leaveToMenu}>
               ← Leave lobby
             </button>
+          </div>
           </div>
         </div>
       </div>
