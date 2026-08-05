@@ -111,9 +111,7 @@ export function MainMenu() {
           />
         ))}
       </div>
-      <div className="menu-layout">
-        <SkinPicker />
-        <div className="screen__inner">
+      <div className="menu-shell">
         <div className="brand brand--bleed">
           <h1 className="brand__title brand__title--bleed">The Cat in the House</h1>
           <svg
@@ -144,7 +142,9 @@ export function MainMenu() {
           <p className="brand__subtitle">Escape together. Don&apos;t get caught.</p>
         </div>
 
-        <div className="panel">
+        <div className="menu-layout">
+          <SkinPicker />
+          <div className="panel menu-panel">
           <div className="field">
             <label className="field__label" htmlFor="player-name">
               Player name

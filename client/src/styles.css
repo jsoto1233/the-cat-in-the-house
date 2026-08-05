@@ -1466,21 +1466,33 @@ input {
 }
 
 /* ---------- Main menu layout with left customisation panel ---------- */
-.menu-layout {
+/* Title sits above the row so both cards can share one top edge. */
+.menu-shell {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  animation: rise 0.35s ease both;
+}
+.menu-layout {
+  display: flex;
+  align-items: flex-start; /* top-align: both card tops sit level */
   justify-content: center;
   gap: 1.5rem;
-  width: 100%;
 }
-.menu-layout .screen__inner { flex: 0 1 460px; }
+.menu-panel {
+  flex: 0 1 460px;
+  width: 460px;
+  max-width: 100%;
+}
 
 .skin-panel {
   flex: 0 0 210px;
-  align-self: flex-end;
-  padding: 0.9rem;
+  /* Top padding matches .panel (2rem) so "Your robber" lines up with the
+     "Player name" label in the card beside it. */
+  padding: 2rem 1rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: linear-gradient(180deg, var(--panel) 0%, var(--bg-2) 100%);
@@ -1561,6 +1573,7 @@ input {
 
 @media (max-width: 900px) {
   .menu-layout { flex-direction: column; align-items: center; }
+  .menu-panel { width: min(460px, 100%); flex: 0 0 auto; }
   .skin-panel { flex: 0 0 auto; width: min(460px, 100%); }
   .skin-grid { grid-template-columns: repeat(10, 1fr); }
   .skin-swatches { grid-template-columns: repeat(8, 1fr); }
