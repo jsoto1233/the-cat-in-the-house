@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
+import { playCatScratch } from "../../game/sfx";
+
+// How often the cat rakes the walls on the menu.
+const SCRATCH_INTERVAL_MS = 9000;
 
 export function MainMenu() {
   const {
@@ -21,11 +25,23 @@ export function MainMenu() {
     setPlayerName(value);
   };
 
+  // Re-key the claw marks every so often so the slash animation replays and the
+  // scratch is heard: it reads as the cat clawing the walls, not a static image.
+  // (Audio only sounds once the browser has had a user gesture.)
+  const [scratchKey, setScratchKey] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setScratchKey((k) => k + 1);
+      playCatScratch();
+    }, SCRATCH_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
     <div className="screen">
       <div className="menu-decor" aria-hidden="true">
         <div className="menu-decor__side menu-decor__side--left">
-          <div className="claws">
+          <div className="claws" key={scratchKey}>
             <i />
             <i />
             <i />
@@ -40,7 +56,7 @@ export function MainMenu() {
           </div>
         </div>
         <div className="menu-decor__side menu-decor__side--right">
-          <div className="claws">
+          <div className="claws" key={scratchKey}>
             <i />
             <i />
             <i />

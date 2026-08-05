@@ -1284,7 +1284,6 @@ input {
   top: 42%;
   width: 44px;
   height: 130px;
-  opacity: 0.5;
 }
 .menu-decor__side--left .claws {
   left: 9%;
@@ -1294,6 +1293,8 @@ input {
   right: 9%;
   transform: scaleX(-1) rotate(9deg);
 }
+/* Each mark is tapered at both ends like a real claw cut, and "slashes" into
+   existence (fast, bright) before settling to a permanent scar. */
 .claws i {
   position: absolute;
   top: 0;
@@ -1301,25 +1302,63 @@ input {
   height: 100%;
   background: linear-gradient(
     to bottom,
-    transparent 4%,
-    rgba(224, 41, 74, 0.75) 34%,
-    rgba(125, 15, 34, 0.55) 82%,
-    transparent
+    transparent 0%,
+    rgba(255, 130, 150, 0.85) 20%,
+    rgba(224, 41, 74, 0.8) 48%,
+    rgba(125, 15, 34, 0.5) 84%,
+    transparent 100%
   );
-  border-radius: 40%;
-  box-shadow: 0 0 6px rgba(224, 41, 74, 0.4);
+  border-radius: 50%;
+  transform-origin: top center;
+  animation: claw-slash 1.5s cubic-bezier(0.15, 0.85, 0.3, 1) both;
 }
 .claws i:nth-child(1) {
   left: 0;
   height: 82%;
+  width: 2.5px;
+  animation-delay: 0s;
 }
 .claws i:nth-child(2) {
   left: 16px;
   height: 100%;
+  width: 3.5px;
+  animation-delay: 0.07s;
 }
 .claws i:nth-child(3) {
   left: 32px;
   height: 88%;
+  width: 2.5px;
+  animation-delay: 0.14s;
+}
+
+@keyframes claw-slash {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+    filter: brightness(2.6);
+    box-shadow: 0 0 18px rgba(255, 110, 135, 0.9);
+  }
+  10% {
+    opacity: 1;
+  }
+  22% {
+    transform: scaleY(1);
+    opacity: 1;
+    filter: brightness(2.4);
+    box-shadow: 0 0 20px rgba(255, 110, 135, 0.85);
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 0.55;
+    filter: brightness(1);
+    box-shadow: 0 0 6px rgba(224, 41, 74, 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .claws i {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 
 /* Drifting embers rising through the dark. */

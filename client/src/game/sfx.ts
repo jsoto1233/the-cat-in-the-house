@@ -95,3 +95,68 @@ export function playCatchSound() {
   catScreech(ac, t0);
   oof(ac, t0 + 0.2);
 }
+
+/** One claw rake: a short, bright noise burst that decays fast. */
+function clawRake(ac: AudioContext, t0: number, gain = 0.16) {
+  const len = Math.floor(ac.sampleRate * 0.13);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const fade = 1 - i / len;
+    data[i] = (Math.random() * 2 - 1) * fade * fade;
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.1;
+  // Sweep downward so it sounds like a claw dragging across a surface.
+  bp.frequency.setValueAtTime(5200, t0);
+  bp.frequency.exponentialRampToValueAtTime(1500, t0 + 0.12);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.13);
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
+  src.stop(t0 + 0.14);
+}
+
+/** A cat hiss: airy high-band noise with a quick swell and fade. */
+function catHiss(ac: AudioContext, t0: number) {
+  const len = Math.floor(ac.sampleRate * 0.5);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const hp = ac.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 2600;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 0.8;
+  bp.frequency.setValueAtTime(4200, t0);
+  bp.frequency.linearRampToValueAtTime(5600, t0 + 0.18);
+  bp.frequency.linearRampToValueAtTime(3200, t0 + 0.45);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.07);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.46);
+  src.connect(hp).connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
+  src.stop(t0 + 0.5);
+}
+
+/**
+ * The menu ambience sting: three quick claw rakes plus a hiss, so the scratch
+ * marks on the title screen read as the cat having just clawed the wall.
+ */
+export function playCatScratch() {
+  const ac = getCtx();
+  if (!ac) return;
+  const t0 = ac.currentTime + 0.01;
+  clawRake(ac, t0, 0.17);
+  clawRake(ac, t0 + 0.055, 0.15);
+  clawRake(ac, t0 + 0.105, 0.13);
+  catHiss(ac, t0 + 0.14);
+}
