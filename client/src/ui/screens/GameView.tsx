@@ -324,12 +324,6 @@ export function GameView() {
         <div className="game__stage">
           <div ref={containerRef} id="game-container" className="game__canvas" />
 
-          {isTopFloor && (
-            <div className="floor-badge floor-badge--window" aria-hidden="true">
-              Top floor · escape through the window
-            </div>
-          )}
-
           {floorSplash && (
             <div className="floor-splash" role="status">
               <div className="floor-splash__num">Floor {floor}</div>

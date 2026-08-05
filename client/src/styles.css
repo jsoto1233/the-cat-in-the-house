@@ -165,6 +165,36 @@ input {
     0 0 26px rgba(196, 30, 58, 0.5),
     0 0 46px rgba(140, 12, 30, 0.6),
     0 2px 2px rgba(0, 0, 0, 0.55);
+  animation: title-flicker 5s linear infinite;
+}
+
+/* Flickering neon-horror sign: mostly lit, with a few quick dropouts. */
+@keyframes title-flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 83%, 100% {
+    opacity: 1;
+    text-shadow:
+      0 0 10px rgba(196, 30, 58, 0.55),
+      0 0 26px rgba(196, 30, 58, 0.5),
+      0 0 46px rgba(140, 12, 30, 0.6),
+      0 2px 2px rgba(0, 0, 0, 0.55);
+  }
+  20%, 24%, 55% {
+    opacity: 0.32;
+    text-shadow:
+      0 0 4px rgba(196, 30, 58, 0.3),
+      0 2px 2px rgba(0, 0, 0, 0.55);
+  }
+  84%, 86% {
+    opacity: 0.55;
+    text-shadow:
+      0 0 6px rgba(196, 30, 58, 0.35),
+      0 2px 2px rgba(0, 0, 0, 0.55);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand__title--bleed {
+    animation: none;
+  }
 }
 
 .brand__drips {
@@ -987,22 +1017,6 @@ input {
   margin-left: 0.1rem;
 }
 
-.floor-badge--window {
-  position: absolute;
-  top: 0.9rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 12;
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #7fc0ff;
-  border: 1px solid #5fb0ff;
-  background: rgba(8, 8, 12, 0.8);
-  border-radius: 999px;
-  padding: 0.2rem 0.7rem;
-  pointer-events: none;
-}
 
 .floor-splash {
   position: absolute;
