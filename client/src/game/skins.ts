@@ -46,23 +46,11 @@ export interface Skin {
   glow?: boolean;
 }
 
-/** The base colours a player can tint their robber. */
-export const SKIN_COLORS: { id: string; name: string; value: number }[] = [
-  { id: "blue", name: "Blue", value: 0x4aa3df },
-  { id: "green", name: "Green", value: 0x4adf7a },
-  { id: "red", name: "Red", value: 0xdf4a4a },
-  { id: "gold", name: "Gold", value: 0xdfae4a },
-  { id: "purple", name: "Purple", value: 0xa96fe0 },
-  { id: "cyan", name: "Cyan", value: 0x45d6d0 },
-  { id: "pink", name: "Pink", value: 0xef73b5 },
-  { id: "bone", name: "Bone", value: 0xd8d3c8 }
-];
-
 export const SKINS: Skin[] = [
   // ---- Starter (free) ----
-  { id: "classic", name: "Blue Bandit", pattern: "mask", accessory: "none", unlock: { kind: "free" } },
-  { id: "neon", name: "Neon Blob", pattern: "solid", accessory: "none", unlock: { kind: "free" }, glow: true },
-  { id: "copycat", name: "Copycat", pattern: "stripe", accessory: "ears", unlock: { kind: "free" } },
+  { id: "classic", name: "Blue Bandit", pattern: "mask", accessory: "none", unlock: { kind: "free" }, tint: 0x4aa3df },
+  { id: "neon", name: "Neon Blob", pattern: "solid", accessory: "none", unlock: { kind: "free" }, tint: 0x39e6c8, glow: true },
+  { id: "copycat", name: "Copycat", pattern: "stripe", accessory: "ears", unlock: { kind: "free" }, tint: 0xe0913f },
   // ---- Level unlocks ----
   {
     id: "ghost",
@@ -70,6 +58,7 @@ export const SKINS: Skin[] = [
     pattern: "solid",
     accessory: "sheet",
     unlock: { kind: "level", level: 2 },
+    tint: 0xd8dcea,
     alpha: 0.55
   },
   {
@@ -86,7 +75,8 @@ export const SKINS: Skin[] = [
     name: "Street Thief",
     pattern: "mask",
     accessory: "beanie",
-    unlock: { kind: "level", level: 4 }
+    unlock: { kind: "level", level: 4 },
+    tint: 0x6b7a92
   },
   {
     id: "alien",
@@ -137,11 +127,10 @@ export const SKINS: Skin[] = [
 
 export interface SkinChoice {
   skinId: string;
-  colorId: string;
 }
 
 const STORAGE_KEY = "cith.skin";
-export const DEFAULT_CHOICE: SkinChoice = { skinId: "classic", colorId: "blue" };
+export const DEFAULT_CHOICE: SkinChoice = { skinId: "classic" };
 
 export function loadSkinChoice(): SkinChoice {
   try {
@@ -151,11 +140,8 @@ export function loadSkinChoice(): SkinChoice {
       const skinId = SKINS.some((s) => s.id === parsed.skinId)
         ? (parsed.skinId as string)
         : DEFAULT_CHOICE.skinId;
-      const colorId = SKIN_COLORS.some((c) => c.id === parsed.colorId)
-        ? (parsed.colorId as string)
-        : DEFAULT_CHOICE.colorId;
       // Never hand back a skin the player hasn't earned.
-      return isUnlocked(getSkin(skinId)) ? { skinId, colorId } : { ...DEFAULT_CHOICE, colorId };
+      return isUnlocked(getSkin(skinId)) ? { skinId } : { ...DEFAULT_CHOICE };
     }
   } catch {
     /* ignore */
@@ -175,17 +161,9 @@ export function getSkin(id: string): Skin {
   return SKINS.find((s) => s.id === id) ?? SKINS[0];
 }
 
-export function getSkinColor(id: string): number {
-  return SKIN_COLORS.find((c) => c.id === id)?.value ?? SKIN_COLORS[0].value;
-}
-
-export function skinColorCss(id: string): string {
-  return `#${getSkinColor(id).toString(16).padStart(6, "0")}`;
-}
-
-/** The colour actually rendered: a skin's fixed tint wins over the swatch. */
-export function resolveSkinColor(skin: Skin, colorId: string): number {
-  return skin.tint ?? getSkinColor(colorId);
+/** Each skin defines its own colour. */
+export function resolveSkinColor(skin: Skin): number {
+  return skin.tint ?? 0x4aa3df;
 }
 
 export function isUnlocked(skin: Skin): boolean {

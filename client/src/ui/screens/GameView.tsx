@@ -221,7 +221,6 @@ export function GameView() {
         preBoot: (g) => {
           const skin = loadSkinChoice();
           g.registry.set("skinId", skin.skinId);
-          g.registry.set("skinColorId", skin.colorId);
           g.registry.set("difficulty", difficulty);
           g.registry.set("floor", floor);
           g.registry.set("floorTotal", floorTotal);

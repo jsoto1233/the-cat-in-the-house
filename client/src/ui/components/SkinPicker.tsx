@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   SKINS,
-  SKIN_COLORS,
   getSkin,
   isUnlocked,
   loadSkinChoice,
@@ -36,7 +35,6 @@ export function SkinPicker() {
     saveSkinChoice(choice);
   }, [choice]);
 
-  const equipped = getSkin(choice.skinId);
   const shown = getSkin(selected);
   const shownUnlocked = isUnlocked(shown);
   const requirement = unlockLabel(shown);
@@ -44,13 +42,13 @@ export function SkinPicker() {
 
   const equip = (s: Skin) => {
     setSelected(s.id);
-    if (isUnlocked(s)) setChoice((p) => ({ ...p, skinId: s.id }));
+    if (isUnlocked(s)) setChoice({ skinId: s.id });
   };
 
   const buy = (s: Skin) => {
     if (s.unlock.kind !== "cash") return;
     if (purchaseSkin(s.id, s.unlock.cost)) {
-      setChoice((p) => ({ ...p, skinId: s.id }));
+      setChoice({ skinId: s.id });
     }
   };
 
@@ -59,7 +57,7 @@ export function SkinPicker() {
       <h2 className="skin-panel__title">Your robber</h2>
 
       <div className="skin-preview">
-        <Avatar skin={shown} color={hex(resolveSkinColor(shown, choice.colorId))} size={104} />
+        <Avatar skin={shown} color={hex(resolveSkinColor(shown))} size={104} />
         <span className="skin-preview__name">
           {shown.name}
           {shown.id === choice.skinId && <span className="skin-badge">EQUIPPED</span>}
@@ -92,22 +90,6 @@ export function SkinPicker() {
         <span className="skin-bank__lvl">Best L{progress.bestLevel}</span>
       </div>
 
-      <span className="skin-panel__label">Colour</span>
-      <div className="skin-swatches">
-        {SKIN_COLORS.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            title={c.name}
-            aria-label={c.name}
-            aria-pressed={choice.colorId === c.id}
-            className={`skin-swatch ${choice.colorId === c.id ? "is-on" : ""}`}
-            style={{ backgroundColor: hex(c.value) }}
-            onClick={() => setChoice((p) => ({ ...p, colorId: c.id }))}
-          />
-        ))}
-      </div>
-
       <span className="skin-panel__label">Skins</span>
       <div className="skin-grid">
         {SKINS.map((s) => {
@@ -123,7 +105,7 @@ export function SkinPicker() {
               } ${unlocked ? "" : "is-locked"}`}
               onClick={() => equip(s)}
             >
-              <Avatar skin={s} color={hex(resolveSkinColor(s, choice.colorId))} size={36} />
+              <Avatar skin={s} color={hex(resolveSkinColor(s))} size={36} />
               {!unlocked && <span className="skin-lock">🔒</span>}
             </button>
           );

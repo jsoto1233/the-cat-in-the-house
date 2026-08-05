@@ -33,7 +33,7 @@ import {
 } from "../house/floors";
 import { playCatchSound } from "../sfx";
 import { DevLevel, getDevState } from "../devAccess";
-import { getSkin, getSkinColor, type Skin } from "../skins";
+import { getSkin, resolveSkinColor, type Skin } from "../skins";
 import {
   applyOpenedVisual,
   buildCat,
@@ -90,7 +90,6 @@ export class PlayableHouseScene extends Phaser.Scene {
   private playerContainer!: Phaser.GameObjects.Container;
   private catContainer!: Phaser.GameObjects.Container;
   private debugGfx?: Phaser.GameObjects.Graphics;
-  private lightPool?: Phaser.GameObjects.Arc;
   private playerSkin?: Skin;
 
   private playerX = PLAYER_SPAWN.x;
@@ -161,12 +160,11 @@ export class PlayableHouseScene extends Phaser.Scene {
     // Cosmetic skin (local player only). In multiplayer the crew colour still
     // wins so teammates stay tellable apart at a glance.
     const skinId = this.registry.get("skinId") as string | undefined;
-    const skinColorId = this.registry.get("skinColorId") as string | undefined;
     this.playerSkin = skinId ? getSkin(skinId) : undefined;
     const playerColor = this.multiplayer
       ? PLAYER_COLORS[spawnIdx] ?? PALETTE.player
-      : skinColorId
-        ? getSkinColor(skinColorId)
+      : this.playerSkin
+        ? resolveSkinColor(this.playerSkin)
         : PALETTE.player;
     this.playerX = spawn.x;
     this.playerY = spawn.y;
@@ -436,10 +434,9 @@ export class PlayableHouseScene extends Phaser.Scene {
   }
 
   /**
-   * Ambient lighting. A warm pool follows the player and the world edges are
-   * tinted down. Kept low-alpha and additive-looking on purpose: it adds mood
-   * without ever concealing loot, walls or the cat, so it can't make the game
-   * unfair or confusing.
+   * Ambient lighting: a soft vignette on the outer edges of the play area.
+   * Deliberately low-alpha and edge-only — it adds mood without concealing
+   * loot, walls or the cat.
    */
   private buildLighting() {
     // Edge vignette (four soft bands around the play area).
@@ -453,15 +450,6 @@ export class PlayableHouseScene extends Phaser.Scene {
     ];
     edges.forEach((e) => e.setDepth(8));
 
-    this.lightPool = this.add.circle(this.playerX, this.playerY, 118, 0xffe9b8, 0.055).setDepth(7);
-    this.tweens.add({
-      targets: this.lightPool,
-      scale: { from: 0.94, to: 1.06 },
-      duration: 2200,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut"
-    });
   }
 
   private setupInput() {
@@ -511,7 +499,6 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerX = resolved.x;
     this.playerY = resolved.y;
     this.playerContainer.setPosition(this.playerX, this.playerY);
-    this.lightPool?.setPosition(this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
   }
 

@@ -1555,21 +1555,6 @@ input {
   font-size: 0.7rem;
   color: var(--text-muted);
 }
-.skin-swatches {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
-.skin-swatch {
-  height: 22px;
-  border-radius: 5px;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.12s, border-color 0.12s;
-}
-.skin-swatch:hover { transform: scale(1.08); }
-.skin-swatch.is-on { border-color: var(--text); }
 .skin-grid {
   display: grid;
   /* 10 skins across 5 columns = two even rows, no ragged tail. */
@@ -1678,7 +1663,6 @@ input {
   .skin-panel { flex: 0 0 auto; width: min(460px, 100%); }
   .brief-panel { flex: 0 0 auto; width: min(460px, 100%); }
   .skin-grid { grid-template-columns: repeat(10, 1fr); }
-  .skin-swatches { grid-template-columns: repeat(8, 1fr); }
 }
 
 /* ---------- Pre-game directions ---------- */
