@@ -5,7 +5,7 @@ const COPY = {
   escaped: {
     title: "Got away with the loot",
     className: "outcome-escaped",
-    blurb: "All floors cleared. You slipped out the window with the loot and vanished into the night."
+    blurb: "All levels cleared. You slipped away with the loot and vanished into the night."
   },
   caught: {
     title: "The cat caught you",

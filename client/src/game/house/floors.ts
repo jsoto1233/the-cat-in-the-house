@@ -517,7 +517,7 @@ const DESIGN_FLOORS: FloorLayout[] = [
   },
   {
     floor: 8,
-    name: "The Getaway",
+    name: "The Park",
     tint: 0x121c16,
     rooms: [
       { key: "park", name: "Park", x: 30, y: 30, w: 420, h: 230 },
@@ -566,7 +566,134 @@ const DESIGN_FLOORS: FloorLayout[] = [
     ],
     playerSpawn: SPAWN,
     catSpawn: { x: 350, y: 130 },
-    exit: { type: "van", x: 690, y: 470, roomKey: "pickup" }
+    exit: { type: "gate", x: 750, y: 470, roomKey: "pickup" }
+  },
+  {
+    floor: 9,
+    name: "The Warehouse",
+    tint: 0x16171c,
+    rooms: [
+      { key: "dock", name: "Loading Dock", x: 30, y: 30, w: 400, h: 230 },
+      { key: "aisle", name: "Aisle", x: 430, y: 30, w: 340, h: 230 },
+      HALL,
+      { key: "crates", name: "Crate Store", x: 30, y: 340, w: 280, h: 230 },
+      { key: "office", name: "Office", x: 310, y: 340, w: 230, h: 230 },
+      { key: "backlot9", name: "Back Lot", x: 540, y: 340, w: 230, h: 230 }
+    ],
+    connectors: [
+      { x: 200, y: 248, w: 44, h: 42 },
+      { x: 580, y: 248, w: 44, h: 42 },
+      { x: 140, y: 308, w: 44, h: 42 },
+      { x: 390, y: 308, w: 44, h: 42 },
+      { x: 630, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 350, y: 200 },
+      { x: 560, y: 110 },
+      { x: 720, y: 200 },
+      { x: 150, y: 480 },
+      { x: 420, y: 500 },
+      { x: 650, y: 480 }
+    ],
+    interactables: [
+      { id: "f9_key", kind: "cabinet", x: 100, y: 230, label: "Tool locker", contains: "key" },
+      { id: "f9_cash", kind: "cabinet", x: 700, y: 540, label: "Yard locker", contains: "cash" },
+      { id: "f9_box", kind: "box", x: 60, y: 60, label: "Cardboard box", contains: null },
+      { id: "f9_med", kind: "cabinet", x: 420, y: 380, label: "Filing cabinet", contains: null },
+      chest("f9_chest", "Locked chest", 150, 540)
+    ],
+    furniture: [
+      { id: "f9_pave", kind: "road", x: 400, y: 300, w: 736, h: 52 },
+      // --- Loading dock: pallet racks along the walls, a forklift parked up
+      { id: "f9_rack1", kind: "shelving", x: 220, y: 45, w: 120, h: 22, solid: true },
+      { id: "f9_rack2", kind: "shelving", x: 48, y: 150, w: 20, h: 100, solid: true, vertical: true },
+      { id: "f9_forklift", kind: "car", x: 330, y: 130, w: 44, h: 70, solid: true },
+      { id: "f9_crate1", kind: "clutter", x: 150, y: 240 },
+      // --- Aisle: long racks either side
+      { id: "f9_rack3", kind: "shelving", x: 455, y: 100, w: 20, h: 80, solid: true, vertical: true },
+      { id: "f9_rack4", kind: "shelving", x: 455, y: 200, w: 20, h: 60, solid: true, vertical: true },
+      { id: "f9_bench9", kind: "counter", x: 690, y: 230, w: 70, h: 22, solid: true },
+      // --- Crate store
+      { id: "f9_rack5", kind: "shelving", x: 240, y: 460, w: 20, h: 100, solid: true, vertical: true },
+      { id: "f9_rack6", kind: "shelving", x: 120, y: 362, w: 80, h: 22, solid: true },
+      { id: "f9_crate2", kind: "clutter", x: 70, y: 545 },
+      // --- Office
+      { id: "f9_rug9", kind: "rug", x: 420, y: 470, w: 90, h: 70 },
+      { id: "f9_desk", kind: "counter", x: 400, y: 556, w: 80, h: 20, solid: true },
+      { id: "f9_lamp9", kind: "streetLamp", x: 500, y: 400 },
+      // --- Back lot
+      { id: "f9_van9", kind: "car", x: 600, y: 400, w: 46, h: 80, solid: true },
+      { id: "f9_trash9", kind: "trashCan", x: 750, y: 380 },
+      { id: "f9_fence9", kind: "fence", x: 660, y: 556, w: 90, h: 16, solid: true }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 350, y: 130 },
+    exit: { type: "gate", x: 740, y: 130, roomKey: "aisle" }
+  },
+  {
+    floor: 10,
+    name: "The Getaway",
+    tint: 0x14111a,
+    rooms: [
+      { key: "overpass", name: "Overpass", x: 30, y: 30, w: 360, h: 230 },
+      { key: "lot10", name: "Lot", x: 390, y: 30, w: 380, h: 230 },
+      HALL,
+      { key: "alley10", name: "Alley", x: 30, y: 340, w: 240, h: 230 },
+      { key: "yard10", name: "Yard", x: 270, y: 340, w: 260, h: 230 },
+      { key: "pickup10", name: "Pickup Point", x: 530, y: 340, w: 240, h: 230 }
+    ],
+    connectors: [
+      { x: 180, y: 248, w: 44, h: 42 },
+      { x: 560, y: 248, w: 44, h: 42 },
+      { x: 120, y: 308, w: 44, h: 42 },
+      { x: 370, y: 308, w: 44, h: 42 },
+      { x: 620, y: 308, w: 44, h: 42 }
+    ],
+    moneySpots: [
+      { x: 110, y: 120 },
+      { x: 300, y: 200 },
+      { x: 500, y: 110 },
+      { x: 720, y: 200 },
+      { x: 130, y: 480 },
+      { x: 390, y: 500 },
+      { x: 600, y: 410 }
+    ],
+    interactables: [
+      { id: "f10_key", kind: "cabinet", x: 100, y: 230, label: "Utility box", contains: "key" },
+      { id: "f10_cash", kind: "cabinet", x: 60, y: 470, label: "Alley locker", contains: "cash" },
+      { id: "f10_box", kind: "box", x: 60, y: 60, label: "Cardboard box", contains: null },
+      { id: "f10_med", kind: "cabinet", x: 400, y: 380, label: "Meter box", contains: null },
+      chest("f10_chest", "Locked chest", 740, 540)
+    ],
+    furniture: [
+      { id: "f10_road", kind: "road", x: 400, y: 300, w: 736, h: 56 },
+      { id: "f10_line", kind: "roadLine", x: 400, y: 300, w: 700, h: 4 },
+      { id: "f10_walk_t", kind: "sidewalk", x: 400, y: 268, w: 736, h: 10 },
+      { id: "f10_walk_b", kind: "sidewalk", x: 400, y: 332, w: 736, h: 10 },
+      // --- Overpass
+      { id: "f10_car1", kind: "car", x: 220, y: 80, w: 46, h: 84, solid: true },
+      { id: "f10_lamp1", kind: "streetLamp", x: 60, y: 180 },
+      { id: "f10_fence10", kind: "fence", x: 300, y: 240, w: 90, h: 16, solid: true },
+      // --- Lot
+      { id: "f10_pave10", kind: "sidewalk", x: 600, y: 150, w: 180, h: 190 },
+      { id: "f10_car2", kind: "car", x: 470, y: 180, w: 46, h: 84, solid: true },
+      { id: "f10_car3", kind: "car", x: 660, y: 80, w: 46, h: 84, solid: true },
+      { id: "f10_trash10", kind: "trashCan", x: 750, y: 240 },
+      // --- Alley
+      { id: "f10_trash2", kind: "trashCan", x: 230, y: 400 },
+      { id: "f10_crate10", kind: "clutter", x: 70, y: 545 },
+      // --- Yard
+      { id: "f10_rug10", kind: "rug", x: 330, y: 470, w: 90, h: 70 },
+      { id: "f10_tree10", kind: "tree", x: 480, y: 470, w: 42, h: 42, solid: true },
+      { id: "f10_bench10", kind: "bench", x: 330, y: 556, w: 60, h: 16, solid: true },
+      // --- Pickup point (the van waits here)
+      { id: "f10_lamp2", kind: "streetLamp", x: 560, y: 380 },
+      { id: "f10_bush10", kind: "bush", x: 560, y: 545, w: 30, h: 20 }
+    ],
+    playerSpawn: SPAWN,
+    catSpawn: { x: 300, y: 130 },
+    exit: { type: "van", x: 690, y: 460, roomKey: "pickup10" }
   }
 ];
 

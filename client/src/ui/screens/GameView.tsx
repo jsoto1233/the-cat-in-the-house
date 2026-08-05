@@ -72,7 +72,7 @@ export function GameView() {
   const [gameOver, setGameOver] = useState(false);
   const [escapeToast, setEscapeToast] = useState<string | null>(null);
   const [spectating, setSpectating] = useState(false);
-  // Brief "Floor N" splash shown at the start of every floor after the first.
+  // Brief "Level N" splash shown at the start of every level after the first.
   const [floorSplash, setFloorSplash] = useState(floor > 1);
 
   roomRef.current = room;
@@ -302,7 +302,7 @@ export function GameView() {
         roomRef.current?.players[playerId]?.name ||
         (playerId === selfId ? playerNameRef.current : null) ||
         "A player";
-      setEscapeToast(`${name} has escaped floor ${escapedFloor}.`);
+      setEscapeToast(`${name} has escaped level ${escapedFloor}.`);
       if (playerId === selfId) setSpectating(true);
     };
 
@@ -390,9 +390,9 @@ export function GameView() {
 
           {floorSplash && (
             <div className="floor-splash" role="status">
-              <div className="floor-splash__num">Floor {floor}</div>
+              <div className="floor-splash__num">Level {floor}</div>
               <div className="floor-splash__sub">
-                {isTopFloor ? "Find the window and get out" : "Grab the loot, then head up"}
+                {isTopFloor ? "Grab the loot and get out" : "Grab the loot, then move on"}
               </div>
             </div>
           )}

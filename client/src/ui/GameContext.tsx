@@ -38,7 +38,7 @@ const SETTINGS_KEY = "cith.settings";
 // Number of floors (levels) the player climbs before escaping out the top-floor
 // window. Floor 1 is the ground floor. This is UI-side progression only. Each
 // floor is a fresh run of the house. Change this one number to add/remove floors.
-export const FLOOR_TOTAL = 8;
+export const FLOOR_TOTAL = 10;
 
 function loadSettings(): Settings {
   try {

@@ -53,8 +53,8 @@ export function HUD({
     <header className="hud" aria-label="Game status">
       <div className="hud__slot">
         <div className={`hud__cell hud__card hud__floor ${topFloor ? "is-top" : ""}`}>
-          <span className="hud__label">Floor</span>
-          <span className="hud__stat-value" aria-label={`Floor ${floor} of ${floorTotal}`}>
+          <span className="hud__label">Level</span>
+          <span className="hud__stat-value" aria-label={`Level ${floor} of ${floorTotal}`}>
             <strong>{floor}</strong>
             <span className="dim">/ {floorTotal}</span>
             {topFloor && <span className="hud__floor-flag" aria-hidden="true"> ⌂</span>}

@@ -1,11 +1,9 @@
 import { PLAYER_COLORS, playerColorCss } from "../../game/house/houseLayout";
 
 /**
- * Shared pre-game directions content. Rendered two ways:
- *  - solo: as a full-screen overlay in GameView, which holds the match paused
- *    (timer, entities and floor spawning) until the player dismisses it.
- *  - multiplayer: inline in the Lobby, which already owns the readiness state,
- *    so everyone reads the rules and readies up before the host starts.
+ * Pre-game directions. Kept deliberately terse — players skim this, so it's the
+ * four steps, the keys, and nothing else. Rendered as a full-screen overlay for
+ * solo and as a side card in the Lobby for multiplayer.
  */
 export function Briefing({ mode }: { mode: "solo" | "multiplayer" }) {
   return (
@@ -13,10 +11,16 @@ export function Briefing({ mode }: { mode: "solo" | "multiplayer" }) {
       <section className="briefing__block">
         <h3 className="briefing__h">Objective</h3>
         <ol className="briefing__list">
-          <li>Grab all the loot scattered through the floor.</li>
-          <li>Search cabinets and boxes (glowing blue) to find the key.</li>
-          <li>Use the key on the locked chest (glowing gold) for bonus loot.</li>
-          <li>Reach the exit before the timer runs out.</li>
+          <li>Grab all the loot.</li>
+          <li>
+            Search <span className="briefing__cue briefing__cue--search">blue</span>{" "}
+            containers for the key.
+          </li>
+          <li>
+            Unlock the <span className="briefing__cue briefing__cue--chest">gold</span>{" "}
+            chest.
+          </li>
+          <li>Reach the exit before time runs out.</li>
         </ol>
       </section>
 
@@ -24,13 +28,29 @@ export function Briefing({ mode }: { mode: "solo" | "multiplayer" }) {
         <h3 className="briefing__h">Controls</h3>
         <ul className="briefing__keys">
           <li>
-            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <span>or</span>{" "}
-            <kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd>
+            {/* Laid out like the real keys: one on top, three beneath. */}
+            <span className="keypad">
+              <kbd>W</kbd>
+              <span className="keypad__row">
+                <kbd>A</kbd>
+                <kbd>S</kbd>
+                <kbd>D</kbd>
+              </span>
+            </span>
+            <span className="keypad__or">or</span>
+            <span className="keypad">
+              <kbd>↑</kbd>
+              <span className="keypad__row">
+                <kbd>←</kbd>
+                <kbd>↓</kbd>
+                <kbd>→</kbd>
+              </span>
+            </span>
             <em>Move</em>
           </li>
           <li>
             <kbd>E</kbd>
-            <em>Search / open</em>
+            <em>Search</em>
           </li>
           <li>
             <kbd>Esc</kbd>
@@ -40,41 +60,24 @@ export function Briefing({ mode }: { mode: "solo" | "multiplayer" }) {
       </section>
 
       <section className="briefing__block">
-        <h3 className="briefing__h">How to win</h3>
+        <h3 className="briefing__h">Tips</h3>
         <ul className="briefing__list">
-          <li>
-            <span className="briefing__win">Win</span> — collect everything and
-            reach the exit. Clear all 8 floors to escape for good.
-          </li>
-          <li>Big furniture blocks you and the cat: use it to break line of sight.</li>
-          {mode === "solo" ? (
-            <li>Head outside after floor 4 — you&apos;ll pick up extra lives.</li>
-          ) : (
-            <li>The cat chases whoever it can see, so split up and cover more ground.</li>
-          )}
+          <li>Hide behind big furniture.</li>
+          <li>10 levels to escape.</li>
+          {mode === "multiplayer" && <li>Loot is shared. Split up.</li>}
         </ul>
-      </section>
-
-      {mode === "multiplayer" && (
-        <section className="briefing__block">
-          <h3 className="briefing__h">Your crew</h3>
+        {mode === "multiplayer" && (
           <div className="briefing__crew">
             {PLAYER_COLORS.map((_, i) => (
-              <span key={i} className="briefing__crew-item">
-                <span
-                  className="briefing__dot"
-                  style={{ backgroundColor: playerColorCss(i) }}
-                />
-                P{i + 1}
-              </span>
+              <span
+                key={i}
+                className="briefing__dot"
+                style={{ backgroundColor: playerColorCss(i) }}
+              />
             ))}
           </div>
-          <p className="briefing__note">
-            Loot is shared — the counter is the whole crew&apos;s total. Everyone
-            must ready up before the host can start.
-          </p>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }

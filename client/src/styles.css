@@ -1661,8 +1661,9 @@ input {
   line-height: 1.55;
 }
 .briefing__list li { margin-bottom: 0.2rem; }
-.briefing__win { color: var(--success); font-weight: 600; }
-.briefing__lose { color: var(--danger); font-weight: 600; }
+.briefing__cue { font-weight: 600; }
+.briefing__cue--search { color: #6fc7ff; }
+.briefing__cue--chest { color: var(--warning); }
 
 .briefing__keys {
   margin: 0;
@@ -1673,9 +1674,23 @@ input {
 .briefing__keys li {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 3px;
-  margin-bottom: 0.3rem;
+  gap: 5px;
+  margin-bottom: 0.4rem;
+}
+/* Keycaps arranged in their real physical layout. */
+.keypad {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.keypad__row {
+  display: flex;
+  gap: 2px;
+}
+.keypad__or {
+  color: var(--text-dim);
+  font-size: 0.66rem;
 }
 .briefing__keys em {
   margin-left: auto;
@@ -1697,17 +1712,14 @@ input {
   border-bottom-width: 2px;
   border-radius: 4px;
 }
-.briefing__crew { display: flex; flex-wrap: wrap; gap: 0.6rem; }
-.briefing__crew-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  color: var(--text-muted);
+.briefing__crew {
+  display: flex;
+  gap: 6px;
+  margin-top: 0.45rem;
 }
 .briefing__dot {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   display: inline-block;
 }
