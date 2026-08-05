@@ -25,6 +25,8 @@ const STAIRS_TREAD_LIGHT = 0x6b5a3c;
 // Outdoor exits: fence gate and the final getaway van.
 const GATE_MARKER = 0x6fdc8c;
 const VAN_MARKER = 0xffd633;
+// Soft cyan cue on searchable containers (cabinets, boxes).
+const SEARCH_MARKER = 0x6fc7ff;
 
 export interface MoneyMarker {
   x: number;
@@ -38,6 +40,8 @@ export interface InteractableMarker {
   container: Phaser.GameObjects.Container;
   opened: boolean;
   lockVisual?: Phaser.GameObjects.GameObject;
+  /** Pulsing "look here" marker; destroyed once the container is opened. */
+  highlight?: Phaser.GameObjects.GameObject;
 }
 
 export interface HouseWorldResult {
@@ -281,6 +285,9 @@ export function applyOpenedVisual(item: InteractableMarker) {
   item.opened = true;
   item.lockVisual?.destroy();
   item.lockVisual = undefined;
+  // Drop the "look here" marker once it has been searched.
+  item.highlight?.destroy();
+  item.highlight = undefined;
   item.container.setAlpha(0.72);
   if (item.def.kind === "chest") {
     item.container.setAngle(-4);
@@ -310,12 +317,75 @@ function buildBox(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects
   return scene.add.container(x, y, [body, tape, flap]).setDepth(3);
 }
 
+/**
+ * Attention marker for interactables. Playtesters kept missing the chest and the
+ * searchable containers, so each one gets a pulsing halo (and the chest also a
+ * bobbing arrow) that is removed the moment it is opened.
+ */
+function buildHighlight(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  opts: { color: number; radius: number; arrow: boolean }
+): Phaser.GameObjects.Container {
+  const parts: Phaser.GameObjects.GameObject[] = [];
+  const halo = scene.add.circle(0, 0, opts.radius, opts.color, 0.2);
+  const ring = scene.add
+    .circle(0, 0, opts.radius - 4)
+    .setStrokeStyle(2, opts.color, 0.75);
+  parts.push(halo, ring);
+
+  scene.tweens.add({
+    targets: halo,
+    scale: { from: 0.82, to: 1.28 },
+    alpha: { from: 0.3, to: 0.06 },
+    duration: 1100,
+    yoyo: true,
+    repeat: -1
+  });
+  scene.tweens.add({
+    targets: ring,
+    alpha: { from: 0.8, to: 0.25 },
+    duration: 900,
+    yoyo: true,
+    repeat: -1
+  });
+
+  if (opts.arrow) {
+    // Downward chevron bobbing above the chest so it reads from across a room.
+    const arrow = scene.add
+      .triangle(0, -opts.radius - 12, 0, 0, 14, 0, 7, 11, opts.color)
+      .setStrokeStyle(2, PALETTE.outline, 0.9);
+    parts.push(arrow);
+    scene.tweens.add({
+      targets: arrow,
+      y: { from: -opts.radius - 16, to: -opts.radius - 6 },
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+  }
+  // Sits just under the interactable itself (depth 3) but above furniture.
+  return scene.add.container(x, y, parts).setDepth(2.5);
+}
+
 function buildChest(
   scene: Phaser.Scene,
   x: number,
   y: number,
   locked: boolean
-): { container: Phaser.GameObjects.Container; lockVisual?: Phaser.GameObjects.GameObject } {
+): {
+  container: Phaser.GameObjects.Container;
+  lockVisual?: Phaser.GameObjects.GameObject;
+  highlight?: Phaser.GameObjects.GameObject;
+} {
+  // Highlight first so it renders behind the chest body.
+  const highlight = buildHighlight(scene, x, y, {
+    color: PALETTE.chestLock,
+    radius: 34,
+    arrow: true
+  });
   const base = scene.add
     .rectangle(0, 6, 44, 28, PALETTE.chest)
     .setStrokeStyle(2, PALETTE.outline);
@@ -325,20 +395,31 @@ function buildChest(
   const band = scene.add.rectangle(0, 6, 44, 4, PALETTE.chestTrim);
   const lock = locked
     ? scene.add
-        .rectangle(0, 2, 8, 10, PALETTE.chestLock)
-        .setStrokeStyle(1, PALETTE.outline)
+        .rectangle(0, 2, 10, 12, PALETTE.chestLock)
+        .setStrokeStyle(2, PALETTE.outline)
     : undefined;
   const container = scene.add.container(x, y, [base, band, lid, ...(lock ? [lock] : [])]).setDepth(3);
-  return { container, lockVisual: lock };
+  return { container, lockVisual: lock, highlight };
 }
 
 function buildInteractable(
   scene: Phaser.Scene,
   def: InteractableDef
-): { container: Phaser.GameObjects.Container; lockVisual?: Phaser.GameObjects.GameObject } {
-  if (def.kind === "box") return { container: buildBox(scene, def.x, def.y) };
+): {
+  container: Phaser.GameObjects.Container;
+  lockVisual?: Phaser.GameObjects.GameObject;
+  highlight?: Phaser.GameObjects.GameObject;
+} {
   if (def.kind === "chest") return buildChest(scene, def.x, def.y, !!def.locked);
-  return { container: buildCabinet(scene, def.x, def.y) };
+  // Searchable containers get a softer cue than the chest: they matter (the key
+  // is in one of them) but shouldn't out-shout the objective.
+  const highlight = buildHighlight(scene, def.x, def.y, {
+    color: SEARCH_MARKER,
+    radius: 27,
+    arrow: false
+  });
+  if (def.kind === "box") return { container: buildBox(scene, def.x, def.y), highlight };
+  return { container: buildCabinet(scene, def.x, def.y), highlight };
 }
 
 export function spawnInteractables(scene: Phaser.Scene, layout: FloorLayout): InteractableMarker[] {
@@ -348,7 +429,8 @@ export function spawnInteractables(scene: Phaser.Scene, layout: FloorLayout): In
       def,
       container: built.container,
       opened: false,
-      lockVisual: built.lockVisual
+      lockVisual: built.lockVisual,
+      highlight: built.highlight
     };
   });
 }
