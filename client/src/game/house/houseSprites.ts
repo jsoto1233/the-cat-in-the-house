@@ -9,6 +9,7 @@ import {
   type Rect
 } from "./houseLayout";
 import { type FloorExit, type FloorLayout } from "./floors";
+import type { Skin } from "../skins";
 
 // Depth bands (floor=0, doors=1, labels=2, interactables=3, cat=4, player=5,
 // money=6). Furniture sits between the floor and the interactables so cabinets,
@@ -544,20 +545,82 @@ export function spawnMoney(scene: Phaser.Scene, layout: FloorLayout): MoneyMarke
   });
 }
 
+/**
+ * Build a player avatar. `skin` is cosmetic only — it changes pattern and
+ * accessory art but never the body radius, so hitboxes stay identical for
+ * everyone regardless of what they picked.
+ */
 export function buildPlayer(
   scene: Phaser.Scene,
   x: number,
   y: number,
-  color = PALETTE.player
+  color = PALETTE.player,
+  skin?: Skin
 ): Phaser.GameObjects.Container {
+  const R = 12;
   const shadow = scene.add.ellipse(0, 12, 26, 10, 0x000000, 0.4);
-  const body = scene.add.circle(0, 0, 12, color);
-  const ring = scene.add.circle(0, 0, 12).setStrokeStyle(2, PALETTE.playerDark);
-  const eyeL = scene.add.circle(-4, -3, 1.8, 0x0a0a0f);
-  const eyeR = scene.add.circle(4, -3, 1.8, 0x0a0a0f);
+  const body = scene.add.circle(0, 0, R, color);
+  const parts: Phaser.GameObjects.GameObject[] = [shadow];
+
   const dir = scene.add.triangle(0, 14, 0, 0, 5, 8, -5, 8, color);
   dir.setRotation(-Math.PI / 2);
-  return scene.add.container(x, y, [shadow, dir, body, ring, eyeL, eyeR]).setDepth(5);
+  parts.push(dir);
+
+  // Ears sit behind the body so they read as silhouette.
+  if (skin?.accessory === "ears") {
+    parts.push(
+      scene.add.triangle(-7, -10, 0, 0, 8, 0, 4, -9, color).setStrokeStyle(1, PALETTE.outline),
+      scene.add.triangle(7, -10, 0, 0, 8, 0, 4, -9, color).setStrokeStyle(1, PALETTE.outline)
+    );
+  }
+  if (skin?.accessory === "horns") {
+    parts.push(
+      scene.add.triangle(-8, -9, 0, 0, 5, 0, 1, -9, 0xd8452f),
+      scene.add.triangle(8, -9, 0, 0, 5, 0, 4, -9, 0xd8452f)
+    );
+  }
+
+  parts.push(body);
+
+  // Pattern overlays, clipped visually by staying inside the body radius.
+  if (skin?.pattern === "stripe") {
+    parts.push(
+      scene.add.rectangle(0, -5, R * 1.85, 3, 0x000000, 0.32),
+      scene.add.rectangle(0, 1, R * 1.95, 3, 0x000000, 0.32),
+      scene.add.rectangle(0, 7, R * 1.6, 3, 0x000000, 0.32)
+    );
+  } else if (skin?.pattern === "spots") {
+    parts.push(
+      scene.add.circle(-5, -4, 3, 0x000000, 0.3),
+      scene.add.circle(5, 2, 2.4, 0x000000, 0.3),
+      scene.add.circle(-2, 6, 2, 0x000000, 0.3)
+    );
+  } else if (skin?.pattern === "mask") {
+    parts.push(scene.add.rectangle(0, -3, R * 2, 7, 0x14141c, 0.85));
+  }
+
+  const ring = scene.add.circle(0, 0, R).setStrokeStyle(2, PALETTE.playerDark);
+  parts.push(ring);
+
+  // Eyes go on top of the mask so the character still reads as a face.
+  parts.push(
+    scene.add.circle(-4, -3, 1.8, skin?.pattern === "mask" ? 0xfff4d0 : 0x0a0a0f),
+    scene.add.circle(4, -3, 1.8, skin?.pattern === "mask" ? 0xfff4d0 : 0x0a0a0f)
+  );
+
+  if (skin?.accessory === "cap") {
+    parts.push(
+      scene.add.rectangle(0, -11, R * 1.7, 6, 0x2b2b45),
+      scene.add.rectangle(4, -8, 12, 3, 0x1d1d30)
+    );
+  }
+  if (skin?.accessory === "halo") {
+    parts.push(
+      scene.add.ellipse(0, -16, 18, 6).setStrokeStyle(2, 0xffe488, 0.95)
+    );
+  }
+
+  return scene.add.container(x, y, parts).setDepth(5);
 }
 
 export function buildCat(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Container {

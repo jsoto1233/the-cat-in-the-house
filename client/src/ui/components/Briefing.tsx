@@ -36,24 +36,15 @@ export function Briefing({ mode }: { mode: "solo" | "multiplayer" }) {
             <kbd>Esc</kbd>
             <em>Pause</em>
           </li>
-          <li>
-            <kbd>~</kbd> <span>or</span> <kbd>⌘/Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>D</kbd>
-            <em>Debug overlay</em>
-          </li>
         </ul>
       </section>
 
       <section className="briefing__block">
-        <h3 className="briefing__h">Win &amp; lose</h3>
+        <h3 className="briefing__h">How to win</h3>
         <ul className="briefing__list">
           <li>
             <span className="briefing__win">Win</span> — collect everything and
             reach the exit. Clear all 8 floors to escape for good.
-          </li>
-          <li>
-            <span className="briefing__lose">Lose</span> — the cat catches you
-            and you drop a life. Run out of lives, or let the timer hit zero, and
-            the run is over.
           </li>
           <li>Big furniture blocks you and the cat: use it to break line of sight.</li>
           {mode === "solo" ? (

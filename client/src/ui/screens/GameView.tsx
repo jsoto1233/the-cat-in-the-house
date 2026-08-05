@@ -10,6 +10,7 @@ import {
   type MatchOutcome
 } from "../../game/scenes/PlayableHouseScene";
 import type { GameSyncState } from "../../game/GameClient";
+import { loadSkinChoice } from "../../game/skins";
 import {
   SOLO_ID,
   WORLD_H,
@@ -167,6 +168,10 @@ export function GameView() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    // Frame-flash fix: don't boot Phaser at all while the directions overlay is
+    // up. Previously the engine mounted immediately and painted a frame of the
+    // floor behind the overlay before the first pause landed.
+    if (briefingOpen) return;
 
     setGameOver(false);
     setPaused(false);
@@ -210,6 +215,9 @@ export function GameView() {
       },
       callbacks: {
         preBoot: (g) => {
+          const skin = loadSkinChoice();
+          g.registry.set("skinId", skin.skinId);
+          g.registry.set("skinColorId", skin.colorId);
           g.registry.set("difficulty", difficulty);
           g.registry.set("floor", floor);
           g.registry.set("floorTotal", floorTotal);
@@ -312,7 +320,7 @@ export function GameView() {
       game.destroy(true);
       gameRef.current = null;
     };
-  }, [gameSessionKey]);
+  }, [gameSessionKey, briefingOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

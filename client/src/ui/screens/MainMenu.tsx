@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
 import { playCatScratch } from "../../game/sfx";
+import { SkinPicker } from "../components/SkinPicker";
 
 // Scratch-mark lifecycle on the menu.
 const SCRATCH_FIRST_DELAY_MS = 1800; // screen stays blank this long on load
@@ -110,7 +111,9 @@ export function MainMenu() {
           />
         ))}
       </div>
-      <div className="screen__inner">
+      <div className="menu-layout">
+        <SkinPicker />
+        <div className="screen__inner">
         <div className="brand brand--bleed">
           <h1 className="brand__title brand__title--bleed">The Cat in the House</h1>
           <svg
@@ -229,6 +232,7 @@ export function MainMenu() {
               {connected ? "Connected to server" : "Offline (demo mode)"}
             </span>
           </div>
+        </div>
         </div>
       </div>
     </div>
