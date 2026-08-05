@@ -4,6 +4,51 @@
 // by loading an <audio>/AudioBuffer and playing it here instead.
 
 let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+
+// ---------------------------------------------------------------------------
+// Every effect is routed through a master gain that mirrors the SAME volume /
+// mute settings as the background music (persisted under "cith.music"), so the
+// speaker control in the corner governs sound effects too. Previously effects
+// went straight to the destination and ignored mute entirely.
+// ---------------------------------------------------------------------------
+const MUSIC_KEY = "cith.music";
+let sfxVolume = 0.5;
+let sfxMuted = false;
+
+function loadStoredLevel() {
+  try {
+    const raw = localStorage.getItem(MUSIC_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw) as { volume?: number; muted?: boolean };
+    if (typeof p.volume === "number") sfxVolume = Math.min(1, Math.max(0, p.volume));
+    sfxMuted = !!p.muted;
+  } catch {
+    /* ignore */
+  }
+}
+if (typeof window !== "undefined") loadStoredLevel();
+
+/** Current effective effect gain (0 when muted). */
+function levelValue() {
+  return sfxMuted ? 0 : sfxVolume;
+}
+
+/** Called by the music control whenever volume or mute changes. */
+export function setSfxLevel(volume: number, muted: boolean) {
+  sfxVolume = Math.min(1, Math.max(0, volume));
+  sfxMuted = muted;
+  if (master && ctx) {
+    // Short ramp instead of a hard jump, so changes don't click.
+    master.gain.cancelScheduledValues(ctx.currentTime);
+    master.gain.setTargetAtTime(levelValue(), ctx.currentTime, 0.02);
+  }
+}
+
+/** True when effects should not be played at all. */
+export function sfxSilent() {
+  return sfxMuted || sfxVolume <= 0.001;
+}
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -19,6 +64,16 @@ function getCtx(): AudioContext | null {
   // the time a catch happens the player has already interacted, so this resumes.
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
+}
+
+/** Master bus for all effects; created lazily on the shared context. */
+function out(ac: AudioContext): GainNode {
+  if (!master) {
+    master = ac.createGain();
+    master.gain.value = levelValue();
+    master.connect(ac.destination);
+  }
+  return master;
 }
 
 /** An angry, wavering cat screech. */
@@ -48,7 +103,7 @@ function catScreech(ac: AudioContext, t0: number) {
   gain.gain.exponentialRampToValueAtTime(0.32, t0 + 0.04);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
 
-  osc.connect(filter).connect(gain).connect(ac.destination);
+  osc.connect(filter).connect(gain).connect(out(ac));
   osc.start(t0);
   lfo.start(t0);
   osc.stop(t0 + 0.6);
@@ -65,7 +120,7 @@ function oof(ac: AudioContext, t0: number) {
   gain.gain.setValueAtTime(0.0001, t0);
   gain.gain.exponentialRampToValueAtTime(0.4, t0 + 0.03);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
-  osc.connect(gain).connect(ac.destination);
+  osc.connect(gain).connect(out(ac));
   osc.start(t0);
   osc.stop(t0 + 0.3);
 
@@ -82,13 +137,14 @@ function oof(ac: AudioContext, t0: number) {
   const nGain = ac.createGain();
   nGain.gain.setValueAtTime(0.14, t0 + 0.05);
   nGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
-  noise.connect(nFilter).connect(nGain).connect(ac.destination);
+  noise.connect(nFilter).connect(nGain).connect(out(ac));
   noise.start(t0 + 0.05);
   noise.stop(t0 + 0.22);
 }
 
 /** Play the full "caught by the cat" sting: angry meow, then an oof. */
 export function playCatchSound() {
+  if (sfxSilent()) return; // respect the global mute / volume control
   const ac = getCtx();
   if (!ac) return;
   const t0 = ac.currentTime + 0.01;
@@ -116,7 +172,7 @@ function clawRake(ac: AudioContext, t0: number, gain = 0.16) {
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.13);
-  src.connect(bp).connect(g).connect(ac.destination);
+  src.connect(bp).connect(g).connect(out(ac));
   src.start(t0);
   src.stop(t0 + 0.14);
 }
@@ -142,7 +198,7 @@ function catHiss(ac: AudioContext, t0: number) {
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.07);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.46);
-  src.connect(hp).connect(bp).connect(g).connect(ac.destination);
+  src.connect(hp).connect(bp).connect(g).connect(out(ac));
   src.start(t0);
   src.stop(t0 + 0.5);
 }
@@ -152,6 +208,7 @@ function catHiss(ac: AudioContext, t0: number) {
  * marks on the title screen read as the cat having just clawed the wall.
  */
 export function playCatScratch() {
+  if (sfxSilent()) return; // respect the global mute / volume control
   const ac = getCtx();
   if (!ac) return;
   const t0 = ac.currentTime + 0.01;

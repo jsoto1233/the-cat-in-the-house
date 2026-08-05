@@ -184,6 +184,22 @@ export const WORLD = { x: 30, y: 30, w: 740, h: 540 };
 export const CASH_TOTAL = 10;
 export const CHEST_KEY_ID = "chest_key";
 export const LIVES_TOTAL = 3;
+// Ludicrous starts with one extra life but never gets the outdoor top-up.
+export const LIVES_LUDICROUS = 4;
+// First outdoor level. On Normal, reaching it grants LIVES_OUTSIDE_BONUS lives.
+export const OUTSIDE_FLOOR = 5;
+export const LIVES_OUTSIDE_BONUS = 2;
+
+/** Lives a player starts a run with, by difficulty. */
+export function startingLives(difficulty: string): number {
+  return difficulty === "ludicrous" ? LIVES_LUDICROUS : LIVES_TOTAL;
+}
+
+/** Maximum lives attainable in a run — drives how many hearts the HUD draws. */
+export function maxLives(difficulty: string, floor: number): number {
+  if (difficulty === "ludicrous") return LIVES_LUDICROUS;
+  return floor >= OUTSIDE_FLOOR ? LIVES_TOTAL + LIVES_OUTSIDE_BONUS : LIVES_TOTAL;
+}
 
 export const PLAYER_SPAWN = { x: 400, y: 300 };
 export const PLAYER_SPAWNS = [

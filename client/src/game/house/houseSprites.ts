@@ -326,26 +326,52 @@ function buildHighlight(
   scene: Phaser.Scene,
   x: number,
   y: number,
-  opts: { color: number; radius: number; arrow: boolean }
+  opts: {
+    color: number;
+    /** Box fitted to the object's real bounds (centre offset + size). */
+    w: number;
+    h: number;
+    cy?: number;
+    arrow: boolean;
+  }
 ): Phaser.GameObjects.Container {
+  const cy = opts.cy ?? 0;
   const parts: Phaser.GameObjects.GameObject[] = [];
-  const halo = scene.add.circle(0, 0, opts.radius, opts.color, 0.2);
-  const ring = scene.add
-    .circle(0, 0, opts.radius - 4)
-    .setStrokeStyle(2, opts.color, 0.75);
-  parts.push(halo, ring);
+
+  // Soft glow slightly proud of the object, then a crisp box flush to its edges.
+  const glow = scene.add.rectangle(0, cy, opts.w + 10, opts.h + 10, opts.color, 0.14);
+  const box = scene.add
+    .rectangle(0, cy, opts.w, opts.h)
+    .setStrokeStyle(2, opts.color, 0.85);
+  parts.push(glow, box);
+
+  // Corner brackets, so it reads as a deliberate "target" marker.
+  const bw = Math.min(10, opts.w / 3);
+  const bh = Math.min(10, opts.h / 3);
+  const hx = opts.w / 2;
+  const hy = opts.h / 2;
+  for (const [sx, sy] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1]
+  ] as const) {
+    parts.push(
+      scene.add.rectangle(sx * hx - sx * (bw / 2), cy + sy * hy, bw, 2.5, opts.color, 0.95),
+      scene.add.rectangle(sx * hx, cy + sy * hy - sy * (bh / 2), 2.5, bh, opts.color, 0.95)
+    );
+  }
 
   scene.tweens.add({
-    targets: halo,
-    scale: { from: 0.82, to: 1.28 },
-    alpha: { from: 0.3, to: 0.06 },
+    targets: glow,
+    alpha: { from: 0.22, to: 0.05 },
     duration: 1100,
     yoyo: true,
     repeat: -1
   });
   scene.tweens.add({
-    targets: ring,
-    alpha: { from: 0.8, to: 0.25 },
+    targets: box,
+    alpha: { from: 0.9, to: 0.3 },
     duration: 900,
     yoyo: true,
     repeat: -1
@@ -353,13 +379,14 @@ function buildHighlight(
 
   if (opts.arrow) {
     // Downward chevron bobbing above the chest so it reads from across a room.
+    const top = cy - opts.h / 2;
     const arrow = scene.add
-      .triangle(0, -opts.radius - 12, 0, 0, 14, 0, 7, 11, opts.color)
+      .triangle(0, top - 14, 0, 0, 14, 0, 7, 11, opts.color)
       .setStrokeStyle(2, PALETTE.outline, 0.9);
     parts.push(arrow);
     scene.tweens.add({
       targets: arrow,
-      y: { from: -opts.radius - 16, to: -opts.radius - 6 },
+      y: { from: top - 18, to: top - 8 },
       duration: 700,
       yoyo: true,
       repeat: -1,
@@ -380,10 +407,13 @@ function buildChest(
   lockVisual?: Phaser.GameObjects.GameObject;
   highlight?: Phaser.GameObjects.GameObject;
 } {
-  // Highlight first so it renders behind the chest body.
+  // Highlight first so it renders behind the chest body. The chest spans
+  // x -23..23 (lid is 46 wide) and y -13..20, so the box is fitted to that.
   const highlight = buildHighlight(scene, x, y, {
     color: PALETTE.chestLock,
-    radius: 34,
+    w: 54,
+    h: 41,
+    cy: 3.5,
     arrow: true
   });
   const base = scene.add
@@ -412,13 +442,25 @@ function buildInteractable(
 } {
   if (def.kind === "chest") return buildChest(scene, def.x, def.y, !!def.locked);
   // Searchable containers get a softer cue than the chest: they matter (the key
-  // is in one of them) but shouldn't out-shout the objective.
+  // is in one of them) but shouldn't out-shout the objective. Boxes fitted to
+  // 34x31 bounds, cabinets to 36x53 (body plus legs).
+  if (def.kind === "box") {
+    const highlight = buildHighlight(scene, def.x, def.y, {
+      color: SEARCH_MARKER,
+      w: 42,
+      h: 39,
+      cy: 2.5,
+      arrow: false
+    });
+    return { container: buildBox(scene, def.x, def.y), highlight };
+  }
   const highlight = buildHighlight(scene, def.x, def.y, {
     color: SEARCH_MARKER,
-    radius: 27,
+    w: 44,
+    h: 61,
+    cy: 2.5,
     arrow: false
   });
-  if (def.kind === "box") return { container: buildBox(scene, def.x, def.y), highlight };
   return { container: buildCabinet(scene, def.x, def.y), highlight };
 }
 

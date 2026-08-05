@@ -9,6 +9,8 @@ import {
   INTERACT_RADIUS,
   INVULN_SECONDS,
   LIVES_TOTAL,
+  maxLives,
+  startingLives,
   PALETTE,
   PLAYER_BODY_RADIUS,
   COIN_PICKUP_RADIUS,
@@ -134,10 +136,10 @@ export class PlayableHouseScene extends Phaser.Scene {
     const savedLives = (this.registry.get("playerLives") as Record<string, number> | undefined) ?? {};
     this.playerLives = new Map();
     for (const id of this.playerIds) {
-      this.playerLives.set(id, savedLives[id] ?? LIVES_TOTAL);
+      this.playerLives.set(id, savedLives[id] ?? startingLives(this.difficulty));
     }
     if (!this.playerLives.has(this.localId)) {
-      this.playerLives.set(this.localId, savedLives[this.localId] ?? LIVES_TOTAL);
+      this.playerLives.set(this.localId, savedLives[this.localId] ?? startingLives(this.difficulty));
     }
 
     // Which floor (level) to build. GameView puts this in the registry and
@@ -884,7 +886,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       atticUnlocked: this.lastAtticUnlocked,
       hasKey: this.hasKey,
       lives: this.playerLives.get(this.localId) ?? LIVES_TOTAL,
-      livesTotal: LIVES_TOTAL,
+      livesTotal: maxLives(this.difficulty, this.currentFloor),
       difficulty: this.difficulty
     };
     this.game.events.emit("preview:update", state);

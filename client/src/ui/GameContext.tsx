@@ -9,7 +9,12 @@ import {
   type ReactNode
 } from "react";
 import { GameClient } from "../game/GameClient";
-import { LIVES_TOTAL } from "../game/house/houseLayout";
+import {
+  LIVES_OUTSIDE_BONUS,
+  OUTSIDE_FLOOR,
+  maxLives,
+  startingLives
+} from "../game/house/houseLayout";
 import type { RoomState } from "../types";
 
 export type Screen =
@@ -125,7 +130,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setOutcome(null);
       setMatchTimeLeftMs(null);
       setFloor(1);
-      setPlayerLives(Object.fromEntries(playerIds.map((id) => [id, LIVES_TOTAL])));
+      setPlayerLives(
+        Object.fromEntries(playerIds.map((id) => [id, startingLives(mode)]))
+      );
       setGameSessionKey((k) => k + 1);
       setScreen("game");
     });
@@ -226,11 +233,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // run of the house (new gameSessionKey remounts GameView), with the timer
   // reset to full. Stops at the top floor; the caller handles the actual win.
   const advanceFloor = useCallback(() => {
-    setFloor((f) => Math.min(FLOOR_TOTAL, f + 1));
+    setFloor((f) => {
+      const next = Math.min(FLOOR_TOTAL, f + 1);
+      // Stepping outside for the first time tops everyone up (Normal only —
+      // Ludicrous keeps its 4 starting lives for the whole run).
+      if (next === OUTSIDE_FLOOR && f < OUTSIDE_FLOOR && difficulty !== "ludicrous") {
+        setPlayerLives((prev) => {
+          const cap = maxLives(difficulty, next);
+          const bumped: Record<string, number> = {};
+          for (const [id, n] of Object.entries(prev)) {
+            // Only living players get the bonus; the dead stay dead.
+            bumped[id] = n > 0 ? Math.min(cap, n + LIVES_OUTSIDE_BONUS) : n;
+          }
+          return bumped;
+        });
+      }
+      return next;
+    });
     setOutcome(null);
     setMatchTimeLeftMs(null);
     setGameSessionKey((k) => k + 1);
-  }, []);
+  }, [difficulty]);
 
   const returnToLobby = useCallback(() => {
     client.detachScene();

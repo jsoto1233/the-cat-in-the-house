@@ -821,12 +821,35 @@ input {
 .heart {
   color: var(--accent);
   text-shadow: 0 0 6px var(--accent-soft);
+  /* Smooth transition when lives change (e.g. the top-up on going outside). */
+  transition: color 0.35s ease, opacity 0.35s ease, text-shadow 0.35s ease,
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
+}
+
+/* A newly granted heart pops in rather than appearing instantly. */
+.heart--gained {
+  animation: heart-gain 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes heart-gain {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .heart--lost {
   color: var(--text-dim);
   opacity: 0.4;
   text-shadow: none;
+  transform: scale(0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heart,
+  .heart--gained {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* ---------- Hit / scratch effect ---------- */
@@ -1193,26 +1216,67 @@ input {
   z-index: 0;
 }
 
-.menu-decor__side {
+/* A single scratch event: claw marks plus the cat's eyes beside them. Lives
+   ~60s (hold, then fade) and is re-spawned at a new random spot afterwards. */
+.scratch-mark {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 26%;
+  width: 44px;
+  height: 130px;
+  transform: rotate(9deg);
+  animation: scratch-life 60s linear forwards;
 }
-.menu-decor__side--left {
-  left: 0;
+.scratch-mark--flip {
+  transform: scaleX(-1) rotate(9deg);
 }
-.menu-decor__side--right {
-  right: 0;
+@keyframes scratch-life {
+  0%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Screen shake on the moment of the slash. */
+.screen.is-shaking {
+  animation: screen-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-4px, 2px); }
+  30% { transform: translate(3px, -3px); }
+  45% { transform: translate(-3px, -1px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(-1px, 1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen.is-shaking {
+    animation: none;
+  }
 }
 
 /* Glowing cat eyes peering out of the shadows. */
+/* The eyes now belong to a scratch: one pair, tucked just below the marks, as
+   if the cat that made them is still crouched there in the dark. */
 .cat-eyes {
   position: absolute;
+  left: -6px;
+  top: 145px;
   display: flex;
   gap: 13px;
   opacity: 0;
-  animation: prowl 16s ease-in-out infinite;
+  animation: eye-watch 7s ease-in-out infinite;
+}
+.scratch-mark--flip .cat-eyes {
+  transform: scaleX(-1);
+}
+@keyframes eye-watch {
+  0%, 8% { opacity: 0; }
+  16% { opacity: 0.95; }
+  30% { opacity: 0.4; } /* slow blink */
+  42% { opacity: 0.95; }
+  70%, 100% { opacity: 0; }
 }
 .cat-eyes span {
   position: relative;
@@ -1234,64 +1298,12 @@ input {
   background: #170f00;
   border-radius: 45%;
 }
-.menu-decor__side--left .cat-eyes {
-  left: 7%;
-}
-.menu-decor__side--right .cat-eyes {
-  right: 7%;
-}
-/* Each pair prowls its own vertical band, so the cat seems to move around. */
-.menu-decor__side--left .cat-eyes--high {
-  top: 12%;
-  animation-duration: 15s;
-}
-.menu-decor__side--left .cat-eyes--low {
-  top: 46%;
-  animation-duration: 17s;
-  animation-delay: 5s;
-  animation-direction: alternate;
-}
-.menu-decor__side--right .cat-eyes--high {
-  top: 20%;
-  animation-duration: 16s;
-  animation-delay: 2.5s;
-  animation-direction: alternate;
-}
-.menu-decor__side--right .cat-eyes--low {
-  top: 54%;
-  animation-duration: 18s;
-  animation-delay: 7s;
-}
-
-/* Fade out, glide to a new spot in the dark, fade back in — the cat prowling. */
-@keyframes prowl {
-  0% { transform: translate(0, 0); opacity: 0; }
-  9% { opacity: 0.95; }
-  15% { opacity: 0.4; }
-  21% { opacity: 0.95; }
-  27% { opacity: 0; }
-  50% { transform: translate(34px, 150px); opacity: 0; }
-  56% { opacity: 0.95; }
-  62% { opacity: 0.4; }
-  68% { opacity: 0.95; }
-  74% { opacity: 0; }
-  100% { transform: translate(-14px, 300px); opacity: 0; }
-}
-
-/* Blood-streak claw marks down the sides. */
+/* Blood-streak claw marks; positioned by their parent .scratch-mark. */
 .claws {
   position: absolute;
-  top: 42%;
+  inset: 0;
   width: 44px;
   height: 130px;
-}
-.menu-decor__side--left .claws {
-  left: 9%;
-  transform: rotate(9deg);
-}
-.menu-decor__side--right .claws {
-  right: 9%;
-  transform: scaleX(-1) rotate(9deg);
 }
 /* Each mark is tapered at both ends like a real claw cut, and "slashes" into
    existence (fast, bright) before settling to a permanent scar. */

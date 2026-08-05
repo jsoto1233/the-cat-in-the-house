@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import musicUrl from "../../assets/halloween-chaser.mp3";
 import { useGame } from "../GameContext";
+import { setSfxLevel } from "../../game/sfx";
 
 const MUSIC_KEY = "cith.music";
 
@@ -80,6 +81,9 @@ export function MusicPlayer() {
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) audio.volume = muted ? 0 : volume;
+    // Keep sound effects on the same volume/mute as the music, so this one
+    // control governs all audio in the game.
+    setSfxLevel(volume, muted);
     try {
       localStorage.setItem(MUSIC_KEY, JSON.stringify(prefs));
     } catch {

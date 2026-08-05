@@ -3,8 +3,17 @@ import { useGame, type Difficulty } from "../GameContext";
 import { Button } from "../components/Button";
 import { playCatScratch } from "../../game/sfx";
 
-// How often the cat rakes the walls on the menu.
-const SCRATCH_INTERVAL_MS = 9000;
+// Scratch-mark lifecycle on the menu.
+const SCRATCH_FIRST_DELAY_MS = 1800; // screen stays blank this long on load
+const SCRATCH_LIFETIME_MS = 60000; // marks hold, then fade (CSS tail)
+const SCRATCH_GAP_MS = 2500; // blank gap before it claws somewhere new
+
+interface Scratch {
+  id: number;
+  left: number; // % from the left edge
+  top: number; // % from the top
+  flip: boolean; // mirror the rake for right-side spawns
+}
 
 export function MainMenu() {
   const {
@@ -25,52 +34,71 @@ export function MainMenu() {
     setPlayerName(value);
   };
 
-  // Re-key the claw marks every so often so the slash animation replays and the
-  // scratch is heard: it reads as the cat clawing the walls, not a static image.
-  // (Audio only sounds once the browser has had a user gesture.)
-  const [scratchKey, setScratchKey] = useState(0);
+  // One scratch "event" at a time: the screen starts blank, the cat claws a
+  // random spot (slash + hiss + a small screen shake), the marks linger for
+  // ~60s while its eyes watch from beside them, everything fades out, then it
+  // happens again somewhere else. Audio only sounds after a user gesture and
+  // when not muted.
+  const [scratch, setScratch] = useState<Scratch | null>(null);
+  const [shaking, setShaking] = useState(false);
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setScratchKey((k) => k + 1);
+    let timer = 0;
+    let cancelled = false;
+    let n = 0;
+
+    const spawn = () => {
+      if (cancelled) return;
+      n += 1;
+      // Keep the marks in the empty side bands so they never sit on the panel.
+      const onRight = Math.random() < 0.5;
+      const band = 5 + Math.random() * 17; // 5-22% in from the edge
+      setScratch({
+        id: n,
+        left: onRight ? 100 - band : band,
+        top: 14 + Math.random() * 58,
+        flip: onRight
+      });
       playCatScratch();
-    }, SCRATCH_INTERVAL_MS);
-    return () => window.clearInterval(id);
+      setShaking(true);
+      timer = window.setTimeout(() => setShaking(false), 420);
+
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        setScratch(null); // fade-out is the tail of the CSS lifetime animation
+        timer = window.setTimeout(spawn, SCRATCH_GAP_MS);
+      }, SCRATCH_LIFETIME_MS);
+    };
+
+    // Blank screen first, then the first scratch.
+    timer = window.setTimeout(spawn, SCRATCH_FIRST_DELAY_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   return (
-    <div className="screen">
+    <div className={`screen ${shaking ? "is-shaking" : ""}`}>
       <div className="menu-decor" aria-hidden="true">
-        <div className="menu-decor__side menu-decor__side--left">
-          <div className="claws" key={scratchKey}>
-            <i />
-            <i />
-            <i />
+        {scratch && (
+          <div
+            key={scratch.id}
+            className={`scratch-mark ${scratch.flip ? "scratch-mark--flip" : ""}`}
+            style={{ left: `${scratch.left}%`, top: `${scratch.top}%` }}
+          >
+            <div className="claws">
+              <i />
+              <i />
+              <i />
+            </div>
+            {/* The cat's eyes belong to this scratch, right beside the marks. */}
+            <div className="cat-eyes">
+              <span />
+              <span />
+            </div>
           </div>
-          <div className="cat-eyes cat-eyes--high">
-            <span />
-            <span />
-          </div>
-          <div className="cat-eyes cat-eyes--low">
-            <span />
-            <span />
-          </div>
-        </div>
-        <div className="menu-decor__side menu-decor__side--right">
-          <div className="claws" key={scratchKey}>
-            <i />
-            <i />
-            <i />
-          </div>
-          <div className="cat-eyes cat-eyes--high">
-            <span />
-            <span />
-          </div>
-          <div className="cat-eyes cat-eyes--low">
-            <span />
-            <span />
-          </div>
-        </div>
-        {Array.from({ length: 30 }).map((_, i) => (
+        )}
+        {Array.from({ length: 18 }).map((_, i) => (
           <span
             key={i}
             className="mote"

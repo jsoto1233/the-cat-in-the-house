@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 interface HUDProps {
   timeLeftMs: number;
   cashFound: number;
@@ -32,6 +34,20 @@ export function HUD({
 }: HUDProps) {
   const low = timeLeftMs <= 30_000;
   const topFloor = floor >= floorTotal;
+
+  // Briefly flag hearts that were just granted (e.g. the outdoor top-up) so
+  // they pop in instead of silently appearing when the zone changes.
+  const prevLives = useRef(lives);
+  const [gainedFrom, setGainedFrom] = useState<number | null>(null);
+  useEffect(() => {
+    if (lives > prevLives.current) {
+      setGainedFrom(prevLives.current);
+      const id = window.setTimeout(() => setGainedFrom(null), 700);
+      prevLives.current = lives;
+      return () => window.clearTimeout(id);
+    }
+    prevLives.current = lives;
+  }, [lives]);
 
   return (
     <header className="hud" aria-label="Game status">
@@ -73,7 +89,14 @@ export function HUD({
           <span className="hud__label">Lives</span>
           <span className="hud__stat-value hearts" aria-label={`${lives} of ${livesTotal} lives`}>
             {Array.from({ length: livesTotal }).map((_, i) => (
-              <span key={i} className={`heart ${i < lives ? "" : "heart--lost"}`}>
+              <span
+                key={i}
+                className={`heart ${i < lives ? "" : "heart--lost"} ${
+                  gainedFrom !== null && i >= gainedFrom && i < lives
+                    ? "heart--gained"
+                    : ""
+                }`}
+              >
                 {"\u2665"}
               </span>
             ))}
