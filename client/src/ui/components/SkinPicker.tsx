@@ -107,7 +107,6 @@ function Avatar({ skin, color, size }: { skin: Skin; color: string; size: number
         <rect x="8" y="16" width="32" height="9" fill="#14141c" opacity="0.85" />
       )}
 
-      <circle cx="24" cy="24" r="16" fill="none" stroke="#2c6f9e" strokeWidth="2.5" />
       <circle cx="19" cy="20" r="2.4" fill={skin.pattern === "mask" ? "#fff4d0" : "#0a0a0f"} />
       <circle cx="29" cy="20" r="2.4" fill={skin.pattern === "mask" ? "#fff4d0" : "#0a0a0f"} />
 

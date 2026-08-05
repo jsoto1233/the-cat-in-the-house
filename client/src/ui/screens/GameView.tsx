@@ -20,9 +20,9 @@ import {
 
 const MATCH_MS_NORMAL = 1 * 60 * 1000;
 const MATCH_MS_LUDICROUS = 30 * 1000;
-const MATCH_MS_NORMAL_FAST_THRESHOLD = 30 * 1000;
 const MATCH_MS_TICK = 1000;
-const MATCH_MS_NORMAL_FAST_INTERVAL = 500;
+// Ludicrous burns the clock at double speed; Normal always ticks real seconds.
+const MATCH_MS_LUDICROUS_INTERVAL = 500;
 
 function matchMsForDifficulty(difficulty: string) {
   return difficulty === "ludicrous" ? MATCH_MS_LUDICROUS : MATCH_MS_NORMAL;
@@ -139,17 +139,15 @@ export function GameView() {
     return () => window.clearTimeout(id);
   }, [escapeToast]);
 
-  const normalFastPhase =
-    difficulty === "normal" && timeLeftMs <= MATCH_MS_NORMAL_FAST_THRESHOLD;
-
   useEffect(() => {
     if (!isHost || gameplayPaused || timeLeftMs <= 0) return;
-    const intervalMs = normalFastPhase ? MATCH_MS_NORMAL_FAST_INTERVAL : MATCH_MS_TICK;
+    const intervalMs =
+      difficulty === "ludicrous" ? MATCH_MS_LUDICROUS_INTERVAL : MATCH_MS_TICK;
     const id = window.setInterval(() => {
       setTimeLeftMs((t) => Math.max(0, t - MATCH_MS_TICK));
     }, intervalMs);
     return () => window.clearInterval(id);
-  }, [isHost, gameplayPaused, difficulty, normalFastPhase, timeLeftMs <= 0]);
+  }, [isHost, gameplayPaused, difficulty, timeLeftMs <= 0]);
 
   useEffect(() => {
     if (!isHost || timeLeftMs > 0 || gameOver) return;

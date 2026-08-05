@@ -1532,7 +1532,8 @@ input {
 .skin-swatch.is-on { border-color: var(--text); }
 .skin-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 10 skins across 5 columns = two even rows, no ragged tail. */
+  grid-template-columns: repeat(5, 1fr);
   gap: 5px;
 }
 .skin-cell {
@@ -1555,7 +1556,8 @@ input {
 @media (max-width: 900px) {
   .menu-layout { flex-direction: column; align-items: center; }
   .skin-panel { flex: 0 0 auto; width: min(460px, 100%); }
-  .skin-grid, .skin-swatches { grid-template-columns: repeat(8, 1fr); }
+  .skin-grid { grid-template-columns: repeat(10, 1fr); }
+  .skin-swatches { grid-template-columns: repeat(8, 1fr); }
 }
 
 /* ---------- Pre-game directions ---------- */

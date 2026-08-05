@@ -599,9 +599,6 @@ export function buildPlayer(
     parts.push(scene.add.rectangle(0, -3, R * 2, 7, 0x14141c, 0.85));
   }
 
-  const ring = scene.add.circle(0, 0, R).setStrokeStyle(2, PALETTE.playerDark);
-  parts.push(ring);
-
   // Eyes go on top of the mask so the character still reads as a face.
   parts.push(
     scene.add.circle(-4, -3, 1.8, skin?.pattern === "mask" ? 0xfff4d0 : 0x0a0a0f),
