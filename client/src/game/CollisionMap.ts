@@ -20,7 +20,7 @@ export interface RoomBounds {
   h: number;
 }
 
-// Canonical room bounds (matches HousePreviewScene layout). Used by the cat's
+// Canonical room bounds (matches the level layouts in floors.ts). Used by the cat's
 // behavior layer to reason about "which room is this entity in".
 export const ROOMS: RoomBounds[] = [
   { key: "living", x: 30, y: 30, w: 330, h: 230 },

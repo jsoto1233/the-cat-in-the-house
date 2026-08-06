@@ -34,19 +34,27 @@ import {
 import { playCatchSound } from "../sfx";
 import { DevLevel, getDevState } from "../devAccess";
 import { getSkin, resolveSkinColor, type Skin } from "../skins";
+import { buildInteractUi, showInteractFeedback } from "../iso/isoHud";
 import {
-  applyOpenedVisual,
-  buildCat,
-  buildInteractUi,
-  buildPlayer,
-  drawHouseWorld,
-  showInteractFeedback,
-  spawnFurniture,
-  spawnInteractables,
-  spawnMoney,
+  applyIsoOpenedVisual,
+  buildIsoCat,
+  buildIsoPlayer,
+  placeActor,
+  spawnIsoDust,
+  spawnIsoInteractables,
+  spawnIsoMoney,
   type InteractableMarker,
   type MoneyMarker
-} from "../house/houseSprites";
+} from "../iso/isoActors";
+import { drawIsoWorld } from "../iso/isoWorld";
+import { spawnIsoFurniture } from "../iso/isoFurniture";
+import { IsoCameraRig } from "../iso/isoCamera";
+import {
+  KX as KX_SCREEN,
+  KY as KY_SCREEN,
+  inputToWorld,
+  toIso
+} from "../iso/projection";
 
 export type { MatchOutcome, PreviewDifficulty, PreviewMood, PreviewState } from "../house/houseLayout";
 
@@ -89,6 +97,7 @@ export class PlayableHouseScene extends Phaser.Scene {
 
   private playerContainer!: Phaser.GameObjects.Container;
   private catContainer!: Phaser.GameObjects.Container;
+  private rig!: IsoCameraRig;
   private debugGfx?: Phaser.GameObjects.Graphics;
   private playerSkin?: Skin;
 
@@ -120,6 +129,8 @@ export class PlayableHouseScene extends Phaser.Scene {
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
     e: Phaser.Input.Keyboard.Key;
+    /** Held to pull the camera back to the full floorplan. */
+    tab: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -169,19 +180,28 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerX = spawn.x;
     this.playerY = spawn.y;
 
-    this.cameras.main.setBackgroundColor("#08080c");
+    this.cameras.main.setBackgroundColor("#06060a");
 
-    const world = drawHouseWorld(this, this.layout);
-    spawnFurniture(this, this.layout); // decoration layer (solid pieces bake into collision below)
+    // --- isometric render pipeline ---
+    // Order matters: the world lays down the shared `ground` graphics, and the
+    // furniture pass paints its floor decals into that same layer so a rug can
+    // never sort above the prop standing on it.
+    const world = drawIsoWorld(this, this.layout);
+    spawnIsoFurniture(this, this.layout, world.ground);
     this.backDoor = world.backDoor;
     this.collisionMap = createFloorCollisionMap(this.layout);
-    this.money = spawnMoney(this, this.layout);
-    this.interactables = spawnInteractables(this, this.layout);
-    this.playerContainer = buildPlayer(this, spawn.x, spawn.y, playerColor, this.playerSkin);
-    this.catContainer = buildCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
+    this.money = spawnIsoMoney(this, this.layout);
+    this.interactables = spawnIsoInteractables(this, this.layout);
+    this.playerContainer = buildIsoPlayer(this, spawn.x, spawn.y, playerColor, this.playerSkin);
+    this.catContainer = buildIsoCat(this, this.catSpawnPos.x, this.catSpawnPos.y);
     ({ interactPrompt: this.interactPrompt, feedbackText: this.feedbackText } = buildInteractUi(this));
 
+    spawnIsoDust(this);
     this.buildLighting();
+
+    // Camera last, so it can frame geometry that already exists.
+    this.rig = new IsoCameraRig(this);
+    this.rig.snapTo(spawn.x, spawn.y);
 
     if (this.multiplayer) this.spawnRemotePlayers();
     this.setupInput();
@@ -189,7 +209,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.catHostX = this.cat.x;
     this.catHostY = this.cat.y;
 
-    this.playerContainer.setPosition(this.playerX, this.playerY);
+    placeActor(this.playerContainer, this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
 
     const attachNetwork = this.registry.get("attachNetwork") as
@@ -216,32 +236,49 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.debugGfx?.clear();
       return;
     }
-    if (!this.debugGfx) this.debugGfx = this.add.graphics().setDepth(50);
+    if (!this.debugGfx) this.debugGfx = this.add.graphics().setDepth(100000);
     const g = this.debugGfx;
     g.clear();
+
+    // The debug layer visualises the SIMULATION, which is still Cartesian, so
+    // every shape here is projected on the way out. A circle in world space is
+    // an ellipse on screen; drawing true circles would misrepresent the radii
+    // the game actually tests against, which defeats the point of the overlay.
+    const ring = (wx: number, wy: number, r: number) => {
+      const c = toIso(wx, wy);
+      g.strokeEllipse(c.x, c.y, r * 2 * KX_SCREEN, r * 2 * KY_SCREEN);
+    };
 
     if (dev.showGrid) {
       const { grid, tileW, tileH } = this.collisionMap;
       g.fillStyle(0xff3355, 0.16);
       for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < grid[r].length; c++) {
-          if (!grid[r][c]) g.fillRect(c * tileW, r * tileH, tileW, tileH);
+          if (!grid[r][c]) {
+            const pts = [
+              toIso(c * tileW, r * tileH),
+              toIso((c + 1) * tileW, r * tileH),
+              toIso((c + 1) * tileW, (r + 1) * tileH),
+              toIso(c * tileW, (r + 1) * tileH)
+            ];
+            g.fillPoints(pts as Phaser.Types.Math.Vector2Like[], true);
+          }
         }
       }
     }
 
     if (dev.showHitboxes) {
       g.lineStyle(1, 0x4affa0, 0.9);
-      g.strokeCircle(this.playerX, this.playerY, PLAYER_BODY_RADIUS);
+      ring(this.playerX, this.playerY, PLAYER_BODY_RADIUS);
       g.lineStyle(1, 0xff5c5c, 0.9);
-      g.strokeCircle(this.cat.x, this.cat.y, CATCH_RADIUS);
+      ring(this.cat.x, this.cat.y, CATCH_RADIUS);
       g.lineStyle(1, 0xffd633, 0.8);
       for (const m of this.money) {
-        if (!m.collected) g.strokeCircle(m.x, m.y, COIN_PICKUP_RADIUS);
+        if (!m.collected) ring(m.x, m.y, COIN_PICKUP_RADIUS);
       }
       g.lineStyle(1, 0x6fc7ff, 0.8);
       for (const it of this.interactables) {
-        if (!it.opened) g.strokeCircle(it.def.x, it.def.y, INTERACT_RADIUS);
+        if (!it.opened) ring(it.def.x, it.def.y, INTERACT_RADIUS);
       }
     }
 
@@ -250,8 +287,12 @@ export class PlayableHouseScene extends Phaser.Scene {
       if (path.length) {
         g.lineStyle(2, 0xff8c42, 0.85);
         g.beginPath();
-        g.moveTo(this.cat.x, this.cat.y);
-        for (const p of path) g.lineTo(p.x, p.y);
+        const start = toIso(this.cat.x, this.cat.y);
+        g.moveTo(start.x, start.y);
+        for (const p of path) {
+          const sp = toIso(p.x, p.y);
+          g.lineTo(sp.x, sp.y);
+        }
         g.strokePath();
       }
     }
@@ -270,6 +311,11 @@ export class PlayableHouseScene extends Phaser.Scene {
     }
 
     const dt = Math.min(delta, 50) / 1000;
+
+    // Camera runs every frame regardless of authority, so a client's view stays
+    // smooth even while it is waiting on host state.
+    this.rig.update(dt, this.playerX, this.playerY);
+    this.rig.setTactical(this.keys.tab.isDown);
 
     if (this.multiplayer && !this.isHost) {
       this.tickInvuln(dt);
@@ -296,7 +342,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.cat.setHuntContext(this.cashFound, uncollectedLoot);
 
     this.cat.update(delta, this.getAllPlayerStates());
-    this.catContainer.setPosition(this.cat.x, this.cat.y);
+    placeActor(this.catContainer, this.cat.x, this.cat.y);
 
     this.checkPickups();
     this.checkInteractInput();
@@ -348,7 +394,7 @@ export class PlayableHouseScene extends Phaser.Scene {
         pos.y = y;
       }
     }
-    this.ensureRemotePlayer(id).setPosition(pos.x, pos.y);
+    placeActor(this.ensureRemotePlayer(id), pos.x, pos.y);
   }
 
   getPlayerPosition(id: string): { x: number; y: number } | null {
@@ -388,7 +434,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     });
     (state.openedInteractables ?? []).forEach((id) => {
       const item = this.interactables.find((i) => i.def.id === id);
-      if (item && !item.opened) applyOpenedVisual(item);
+      if (item && !item.opened) applyIsoOpenedVisual(item);
     });
     this.catHostX = state.cat.x;
     this.catHostY = state.cat.y;
@@ -404,7 +450,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     } else {
       this.cat.x = state.cat.x;
       this.cat.y = state.cat.y;
-      this.catContainer.setPosition(state.cat.x, state.cat.y);
+      placeActor(this.catContainer, state.cat.x, state.cat.y);
     }
     this.applyEscapedPlayers(state.escapedPlayers ?? []);
     for (const [id, p] of Object.entries(state.players)) {
@@ -420,7 +466,7 @@ export class PlayableHouseScene extends Phaser.Scene {
           ty: p.y,
           alive: p.alive && !this.hasEscaped(id)
         });
-        this.ensureRemotePlayer(id)?.setPosition(p.x, p.y);
+        placeActor(this.ensureRemotePlayer(id), p.x, p.y);
       }
     }
     this.emitPreview();
@@ -438,18 +484,23 @@ export class PlayableHouseScene extends Phaser.Scene {
    * Deliberately low-alpha and edge-only — it adds mood without concealing
    * loot, walls or the cat.
    */
+  /**
+   * Ambient lighting: a soft vignette around the edge of the viewport.
+   *
+   * Pinned to the camera with scrollFactor 0 rather than placed in the world,
+   * so it frames the VIEW and not the level. A world-space vignette would slide
+   * across the floor as the camera pans, which reads as a bug rather than mood.
+   */
   private buildLighting() {
-    // Edge vignette (four soft bands around the play area).
     const v = 0x05050a;
-    const band = 26;
+    const band = 44;
     const edges = [
-      this.add.rectangle(WORLD_W / 2, band / 2, WORLD_W, band, v, 0.4),
-      this.add.rectangle(WORLD_W / 2, WORLD_H - band / 2, WORLD_W, band, v, 0.4),
-      this.add.rectangle(band / 2, WORLD_H / 2, band, WORLD_H, v, 0.4),
-      this.add.rectangle(WORLD_W - band / 2, WORLD_H / 2, band, WORLD_H, v, 0.4)
+      this.add.rectangle(WORLD_W / 2, band / 2, WORLD_W, band, v, 0.45),
+      this.add.rectangle(WORLD_W / 2, WORLD_H - band / 2, WORLD_W, band, v, 0.45),
+      this.add.rectangle(band / 2, WORLD_H / 2, band, WORLD_H, v, 0.45),
+      this.add.rectangle(WORLD_W - band / 2, WORLD_H / 2, band, WORLD_H, v, 0.45)
     ];
-    edges.forEach((e) => e.setDepth(8));
-
+    edges.forEach((e) => e.setScrollFactor(0).setDepth(90000));
   }
 
   private setupInput() {
@@ -463,14 +514,18 @@ export class PlayableHouseScene extends Phaser.Scene {
       a: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       s: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      e: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+      e: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      tab: kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB)
     };
     kb.addCapture([
       Phaser.Input.Keyboard.KeyCodes.UP,
       Phaser.Input.Keyboard.KeyCodes.DOWN,
       Phaser.Input.Keyboard.KeyCodes.LEFT,
       Phaser.Input.Keyboard.KeyCodes.RIGHT,
-      Phaser.Input.Keyboard.KeyCodes.E
+      Phaser.Input.Keyboard.KeyCodes.E,
+      // Captured so holding Tab pulls the camera back instead of moving focus
+      // out of the canvas and stranding the player with dead keys.
+      Phaser.Input.Keyboard.KeyCodes.TAB
     ]);
   }
 
@@ -480,25 +535,37 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.cat.setDifficulty(this.difficulty);
   }
 
+  /**
+   * Move the local player.
+   *
+   * ISO INPUT. Keys are read in SCREEN space (press D, move right on screen)
+   * and rotated into world space by inputToWorld. Feeding raw WASD into the
+   * simulation would send the player diagonally, because the world axes are
+   * rotated 45 degrees on screen by the projection.
+   *
+   * Everything after the rotation is unchanged: the same collision map, the
+   * same resolveMove, the same world coordinates on the wire. The projection
+   * never leaks past this function.
+   */
   private movePlayer(dt: number) {
     if (!this.isPlayerActive(this.localId)) return;
-    let dx = 0;
-    let dy = 0;
-    if (this.keys.left.isDown || this.keys.a.isDown) dx -= 1;
-    if (this.keys.right.isDown || this.keys.d.isDown) dx += 1;
-    if (this.keys.up.isDown || this.keys.w.isDown) dy -= 1;
-    if (this.keys.down.isDown || this.keys.s.isDown) dy += 1;
-    if (dx === 0 && dy === 0) return;
+    let ix = 0;
+    let iy = 0;
+    if (this.keys.left.isDown || this.keys.a.isDown) ix -= 1;
+    if (this.keys.right.isDown || this.keys.d.isDown) ix += 1;
+    if (this.keys.up.isDown || this.keys.w.isDown) iy -= 1;
+    if (this.keys.down.isDown || this.keys.s.isDown) iy += 1;
+    if (ix === 0 && iy === 0) return;
 
-    const len = Math.sqrt(dx * dx + dy * dy);
+    const dir = inputToWorld(ix, iy);
     const step = PLAYER_SPEED * dt;
-    const toX = this.playerX + (dx / len) * step;
-    const toY = this.playerY + (dy / len) * step;
+    const toX = this.playerX + dir.x * step;
+    const toY = this.playerY + dir.y * step;
 
     const resolved = this.collisionMap.resolveMove(this.playerX, this.playerY, toX, toY);
     this.playerX = resolved.x;
     this.playerY = resolved.y;
-    this.playerContainer.setPosition(this.playerX, this.playerY);
+    placeActor(this.playerContainer, this.playerX, this.playerY);
     this.onMove?.(this.playerX, this.playerY);
   }
 
@@ -622,7 +689,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       if (!pos) continue;
       pos.x = Phaser.Math.Linear(pos.x, pos.tx, blend);
       pos.y = Phaser.Math.Linear(pos.y, pos.ty, blend);
-      container.setPosition(pos.x, pos.y);
+      placeActor(container, pos.x, pos.y);
       container.setVisible(this.isPlayerActive(id));
     }
   }
@@ -685,7 +752,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       }
     }
 
-    this.catContainer.setPosition(this.cat.x, this.cat.y);
+    placeActor(this.catContainer, this.cat.x, this.cat.y);
   }
 
   private buildSyncState() {
@@ -721,7 +788,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.playerIds.forEach((id, i) => {
       if (id === this.localId) return;
       const spawn = PLAYER_SPAWNS[i] ?? PLAYER_SPAWN;
-      this.remotePlayers.set(id, buildPlayer(this, spawn.x, spawn.y, PLAYER_COLORS[i] ?? PALETTE.player));
+      this.remotePlayers.set(id, buildIsoPlayer(this, spawn.x, spawn.y, PLAYER_COLORS[i] ?? PALETTE.player));
       this.remotePositions.set(id, {
         x: spawn.x,
         y: spawn.y,
@@ -735,9 +802,18 @@ export class PlayableHouseScene extends Phaser.Scene {
   private ensureRemotePlayer(id: string) {
     if (this.remotePlayers.has(id)) return this.remotePlayers.get(id)!;
     const idx = this.playerIds.indexOf(id);
-    const container = buildPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_COLORS[idx] ?? PALETTE.player);
+    const container = buildIsoPlayer(this, PLAYER_SPAWN.x, PLAYER_SPAWN.y, PLAYER_COLORS[idx] ?? PALETTE.player);
     this.remotePlayers.set(id, container);
     return container;
+  }
+
+  /**
+   * Short push-in on a successful search. Held only briefly: a lingering zoom
+   * would fight the player for control of the camera while the cat is closing.
+   */
+  private pulseFocus() {
+    this.rig.setFocused(true);
+    this.time.delayedCall(450, () => this.rig?.setFocused(false));
   }
 
   private checkInteractInput() {
@@ -778,18 +854,21 @@ export class PlayableHouseScene extends Phaser.Scene {
       return;
     }
 
-    applyOpenedVisual(item);
+    applyIsoOpenedVisual(item);
 
     if (def.contains === "key") {
       this.hasKey = true;
       showInteractFeedback(this, this.feedbackText, "Found a key!");
+      this.pulseFocus();
       this.cat.onClueCollected(playerId, `key_${def.id}`);
     } else if (def.contains === "cash") {
       this.grantCash(1, playerId, def.id);
       showInteractFeedback(this, this.feedbackText, "Found $1!");
+      this.pulseFocus();
     } else if (def.contains === "cash_x2") {
       this.grantCash(2, playerId, def.id);
       showInteractFeedback(this, this.feedbackText, "Chest opened! $2!");
+      this.pulseFocus();
     } else {
       showInteractFeedback(this, this.feedbackText, "Nothing inside");
     }
@@ -846,6 +925,9 @@ export class PlayableHouseScene extends Phaser.Scene {
       if (Math.sqrt(dx * dx + dy * dy) > CATCH_RADIUS) continue;
 
       playCatchSound(); // angry cat screech + victim's "oof"
+      // Only the local player's own capture shakes the local camera; being told
+      // a teammate was caught should not jolt your view mid-run.
+      if (p.id === this.localId) this.rig.punch(9, 8);
 
       const remaining = Math.max(0, (this.playerLives.get(p.id) ?? startingLives(this.difficulty)) - 1);
       this.playerLives.set(p.id, remaining);
@@ -857,7 +939,7 @@ export class PlayableHouseScene extends Phaser.Scene {
         if (p.id === this.localId) {
           this.playerX = PLAYER_SPAWN.x;
           this.playerY = PLAYER_SPAWN.y;
-          this.playerContainer.setPosition(this.playerX, this.playerY);
+          placeActor(this.playerContainer, this.playerX, this.playerY);
         } else {
           const idx = this.playerIds.indexOf(p.id);
           const spawn = PLAYER_SPAWNS[idx] ?? PLAYER_SPAWN;
@@ -868,7 +950,8 @@ export class PlayableHouseScene extends Phaser.Scene {
             ty: spawn.y,
             alive: true
           });
-          this.remotePlayers.get(p.id)?.setPosition(spawn.x, spawn.y);
+          const rc = this.remotePlayers.get(p.id);
+          if (rc) placeActor(rc, spawn.x, spawn.y);
         }
       } else if (p.id !== this.localId) {
         const pos = this.remotePositions.get(p.id);
@@ -879,7 +962,7 @@ export class PlayableHouseScene extends Phaser.Scene {
       this.cat.y = this.catSpawnPos.y;
       this.catHostX = this.cat.x;
       this.catHostY = this.cat.y;
-      this.catContainer.setPosition(this.cat.x, this.cat.y);
+      placeActor(this.catContainer, this.cat.x, this.cat.y);
       this.cat.calm(25);
 
       // Floor only clears if at least one player escaped. If everyone dies

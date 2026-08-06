@@ -46,7 +46,7 @@ export interface InteractableDef {
 // ---------------------------------------------------------------------------
 // Furniture / decoration. Purely a layer on top of the existing room + object
 // model: it never changes loot, keys, chests, doors or the exit. Each piece is
-// drawn by houseSprites.spawnFurniture and, when `solid` is true, its footprint
+// drawn by isoFurniture.spawnIsoFurniture and, when `solid` is true, its footprint
 // (cx, cy centred; fw x fh) is baked into the floor's CollisionMap so BOTH the
 // player (resolveMove) and the cat (A* findPath) treat it as a wall. Small decor
 // (solid=false) is visual only and has no collision footprint.
