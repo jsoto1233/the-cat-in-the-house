@@ -200,7 +200,7 @@ export class PlayableHouseScene extends Phaser.Scene {
     this.buildLighting();
 
     // Camera last, so it can frame geometry that already exists.
-    this.rig = new IsoCameraRig(this);
+    this.rig = new IsoCameraRig(this, this.layout);
     this.rig.snapTo(spawn.x, spawn.y);
 
     if (this.multiplayer) this.spawnRemotePlayers();

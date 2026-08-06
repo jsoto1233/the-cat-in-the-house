@@ -68,6 +68,12 @@ const SAME_ROOM_CASH = 3; // cashFound >= this forces direct HUNT
 const STALK_RANGE_TILES = 6;
 const STALK_STOP_TILES = 3.5; // hang ~3-4 tiles short while stalking
 const LOST_SIGHT_SECONDS = 5;
+/**
+ * How long the cat patrols after losing the player before it starts converging
+ * on the loot instead. Keeps the "it lost me" beat without letting the cat give
+ * up on the match entirely.
+ */
+const GIVE_UP_PATROL_SECONDS = 9;
 const DEFAULT_TILE = 20;
 
 type Listener = (data: Record<string, unknown>) => void;
@@ -148,6 +154,15 @@ export class CatAI {
 
   /** Feed live game state used by the behavior selector (call before update). */
   setHuntContext(cashFound: number, uncollectedLoot: Waypoint[]): void {
+    // A grabbed piece of loot is a NOISE EVENT. Without this the cat has no
+    // sense at all beyond proximity, so on the larger levels a player could
+    // strip the whole floor without ever being noticed. Hearing the grab
+    // refreshes its awareness and makes it re-decide immediately.
+    if (cashFound > this.cashFound) {
+      this.lastSeenElapsed = this.elapsed;
+      this.forceReeval = true;
+      this.increaseAggression(18);
+    }
     this.cashFound = cashFound;
     this.uncollectedLoot = uncollectedLoot;
   }
@@ -383,8 +398,17 @@ export class CatAI {
       // Idle phase: drift around the current room.
       next = "PATROL";
     } else if (lostSight) {
-      // Lost the player — ludicrous keeps probing loot; normal falls back to patrol.
-      next = ludicrous ? "INTERCEPT" : "PATROL";
+      // Losing sight used to drop the cat to PATROL on normal difficulty, and
+      // it never climbed back out. A cat that spawns more than STALK_RANGE
+      // tiles away in another room is "lost" from the very first second, so on
+      // four of the ten levels it patrolled its spawn room for the entire match
+      // and never once came after the player.
+      //
+      // Now the search escalates: a short spell of patrolling (which reads as
+      // the cat having genuinely lost you), and after that it converges on the
+      // loot, because that is where the player has to go.
+      const lostFor = this.elapsed - this.lastSeenElapsed;
+      next = ludicrous || lostFor > GIVE_UP_PATROL_SECONDS ? "INTERCEPT" : "PATROL";
     } else if (ludicrous) {
       // PART 4 — ludicrous only ever HUNTs or INTERCEPTs.
       next = sameRoom || this.cashFound >= SAME_ROOM_CASH ? "HUNT" : "INTERCEPT";
@@ -421,9 +445,13 @@ export class CatAI {
         break;
       }
       case "INTERCEPT": {
+        // Camp the loot the player is heading for. Once the floor is stripped
+        // there is nothing left to camp, so it closes on the player directly —
+        // otherwise the endgame would have the cat wandering while the player
+        // strolls to the exit.
         const loot = this.nearestLootToPlayer(player);
         this.targetPosition = loot ?? { x: player.x, y: player.y };
-        this.followPathOrTarget(this.targetPosition, dt);
+        this.followPathOrTarget(this.targetPosition, dt, loot ? undefined : 0.1);
         break;
       }
       case "STALK": {

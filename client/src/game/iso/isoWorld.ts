@@ -20,6 +20,7 @@ import {
   strokeDiamond
 } from "./isoDraw";
 import { DepthBias, depthOf, toIso } from "./projection";
+import { buildIsoWalls } from "./isoWalls";
 
 // ---------------------------------------------------------------------------
 // Isometric world renderer: ground, floors, walls, doorways and the exit.
@@ -131,98 +132,6 @@ function paintFloor(
 }
 
 // --- wall construction -----------------------------------------------------
-
-type Span = { a: number; b: number };
-
-/**
- * Remove doorway gaps from a wall run, returning the solid pieces that remain.
- * Doorways are authored as connector rectangles that straddle a wall line, so a
- * wall is built by subtracting every connector that crosses it.
- */
-function subtractSpans(a: number, b: number, gaps: Span[]): Span[] {
-  let runs: Span[] = [{ a, b }];
-  for (const gap of gaps) {
-    const next: Span[] = [];
-    for (const r of runs) {
-      if (gap.b <= r.a || gap.a >= r.b) {
-        next.push(r); // no overlap
-        continue;
-      }
-      if (gap.a > r.a) next.push({ a: r.a, b: gap.a });
-      if (gap.b < r.b) next.push({ a: gap.b, b: r.b });
-    }
-    runs = next;
-  }
-  return runs.filter((r) => r.b - r.a > 1.5);
-}
-
-/** Connector spans that cut the horizontal wall line y = lineY. */
-function gapsOnHorizontal(connectors: Rect[], lineY: number, pad = 3): Span[] {
-  return connectors
-    .filter((c) => c.y - pad <= lineY && lineY <= c.y + c.h + pad)
-    .map((c) => ({ a: c.x - 1, b: c.x + c.w + 1 }));
-}
-
-/** Connector spans that cut the vertical wall line x = lineX. */
-function gapsOnVertical(connectors: Rect[], lineX: number, pad = 3): Span[] {
-  return connectors
-    .filter((c) => c.x - pad <= lineX && lineX <= c.x + c.w + pad)
-    .map((c) => ({ a: c.y - 1, b: c.y + c.h + 1 }));
-}
-
-/**
- * Draw all four walls of a room. Far walls (north, west) are full height; near
- * walls (south, east) are a low lip so the interior stays visible.
- */
-function buildRoomWalls(
-  scene: Phaser.Scene,
-  room: Room,
-  connectors: Rect[],
-  wallColor: number,
-  capColor: number
-) {
-  const half = WALL_T / 2;
-
-  const put = (x: number, y: number, w: number, h: number, height: number) => {
-    const g = scene.add.graphics();
-    fillPrism(g, x, y, w, h, height, wallColor, {
-      topColor: capColor,
-      shadow: false,
-      ao: 0.4,
-      outlineColor: 0x1a1a26
-    });
-    // Sort by the wall's nearest edge so props in front of it draw over it.
-    g.setDepth(depthOf(x + w, y + h, DepthBias.PROP));
-  };
-
-  // --- far walls: full height ---
-  for (const s of subtractSpans(
-    room.x,
-    room.x + room.w,
-    gapsOnHorizontal(connectors, room.y)
-  )) {
-    put(s.a, room.y - half, s.b - s.a, WALL_T, WALL_H);
-  }
-  for (const s of subtractSpans(room.y, room.y + room.h, gapsOnVertical(connectors, room.x))) {
-    put(room.x - half, s.a, WALL_T, s.b - s.a, WALL_H);
-  }
-
-  // --- near walls: low lip ---
-  for (const s of subtractSpans(
-    room.x,
-    room.x + room.w,
-    gapsOnHorizontal(connectors, room.y + room.h)
-  )) {
-    put(s.a, room.y + room.h - half, s.b - s.a, WALL_T, WALL_LIP_H);
-  }
-  for (const s of subtractSpans(
-    room.y,
-    room.y + room.h,
-    gapsOnVertical(connectors, room.x + room.w)
-  )) {
-    put(room.x + room.w - half, s.a, WALL_T, s.b - s.a, WALL_LIP_H);
-  }
-}
 
 /** Doorway trim: a frame around each connector so gaps read as intentional. */
 function buildDoorways(scene: Phaser.Scene, connectors: Rect[], wood: number) {
@@ -366,42 +275,16 @@ export function drawIsoWorld(scene: Phaser.Scene, layout: FloorLayout): IsoWorld
     paintFloor(ground, room, material, layout.tint);
   }
 
-  // --- perimeter wall of the whole level ---
-  const wallColor = outdoor ? shade(PALETTE.fence, 1.3) : mix(0x8a86a0, layout.tint, 0.18);
+  const wallColor = outdoor ? shade(PALETTE.fence, 1.15) : mix(0x6c6884, layout.tint, 0.26);
   const capColor = shade(wallColor, 1.25);
-  const P = 8;
-  const perim = scene.add.graphics();
-  fillPrism(perim, WORLD.x - P, WORLD.y - P, WORLD.w + P * 2, P, PERIMETER_H, wallColor, {
-    topColor: capColor,
-    shadow: false,
-    ao: 0.5
-  });
-  fillPrism(perim, WORLD.x - P, WORLD.y, P, WORLD.h, PERIMETER_H, wallColor, {
-    topColor: capColor,
-    shadow: false,
-    ao: 0.5
-  });
-  perim.setDepth(depthOf(WORLD.x, WORLD.y, -50));
-
-  // Near perimeter edges stay as lips so the level is never boxed in visually.
-  const perimNear = scene.add.graphics();
-  fillPrism(perimNear, WORLD.x - P, WORLD.y + WORLD.h, WORLD.w + P * 2, P, WALL_LIP_H, wallColor, {
-    topColor: capColor,
-    shadow: false
-  });
-  fillPrism(perimNear, WORLD.x + WORLD.w, WORLD.y, P, WORLD.h, WALL_LIP_H, wallColor, {
-    topColor: capColor,
-    shadow: false
-  });
-  perimNear.setDepth(depthOf(WORLD.x + WORLD.w + P, WORLD.y + WORLD.h + P, DepthBias.PROP));
 
   // --- interior walls + doorways ---
   // Outdoor levels have no interior walls: their "rooms" are open yard zones,
   // and walling them would make the chase levels claustrophobic.
+  // Walls come from the collision grid on EVERY level, indoor or outdoor, so
+  // what is drawn and what is solid can never drift apart.
+  buildIsoWalls(scene, layout, wallColor, capColor);
   if (!outdoor) {
-    for (const room of layout.rooms) {
-      buildRoomWalls(scene, room, layout.connectors, wallColor, capColor);
-    }
     buildDoorways(scene, layout.connectors, PALETTE.doorWood);
   } else {
     // Outdoors, zone boundaries read as low kerbs instead.
